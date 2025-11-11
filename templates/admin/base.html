@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Admin Panel - Sokoni Africa{% endblock %}</title>
+    <link rel="stylesheet" href="/static/admin/css/style.css">
+    {% block extra_css %}{% endblock %}
+</head>
+<body>
+    <!-- Sidebar -->
+    <aside class="sidebar">
+        <div class="sidebar-header">
+            <h2>Sokoni Africa</h2>
+            <p>Admin Panel</p>
+        </div>
+        <nav class="sidebar-nav">
+            <a href="/admin" class="nav-item {% if request.url.path == '/admin' %}active{% endif %}">
+                <span class="nav-icon">📊</span>
+                <span>Dashboard</span>
+            </a>
+            <a href="/admin/users" class="nav-item {% if '/admin/users' in request.url.path %}active{% endif %}">
+                <span class="nav-icon">👥</span>
+                <span>Users</span>
+            </a>
+            <a href="/admin/products" class="nav-item {% if '/admin/products' in request.url.path %}active{% endif %}">
+                <span class="nav-icon">📦</span>
+                <span>Products</span>
+            </a>
+            <a href="/admin/orders" class="nav-item {% if '/admin/orders' in request.url.path %}active{% endif %}">
+                <span class="nav-icon">🛒</span>
+                <span>Orders</span>
+            </a>
+            <a href="/admin/fees" class="nav-item {% if '/admin/fees' in request.url.path %}active{% endif %}">
+                <span class="nav-icon">💰</span>
+                <span>Fees & Cashout</span>
+            </a>
+        </nav>
+        <div class="sidebar-footer">
+            <div class="admin-info">
+                <p><strong>{{ admin_user.username }}</strong></p>
+                <p class="text-muted">{{ admin_user.email or 'No email' }}</p>
+            </div>
+            <a href="/admin/logout" class="logout-btn">🚪 Logout</a>
+        </div>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="main-content">
+        <header class="content-header">
+            <h1>{% block page_title %}Dashboard{% endblock %}</h1>
+        </header>
+        <div class="content-body">
+            {% block content %}{% endblock %}
+        </div>
+    </main>
+
+    <script src="/static/admin/js/main.js"></script>
+    {% block extra_js %}{% endblock %}
+</body>
+</html>
+

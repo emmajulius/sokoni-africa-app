@@ -1,0 +1,126 @@
+{% extends "admin/base.html" %}
+
+{% block page_title %}Users Management{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>Users Management</h1>
+    <div class="header-actions">
+        <form method="GET" action="/admin/users" class="search-form">
+            <input type="text" name="search" placeholder="Search users..." value="{{ search or '' }}">
+            <select name="user_type">
+                <option value="">All Types</option>
+                <option value="client" {% if user_type == 'client' %}selected{% endif %}>Client</option>
+                <option value="supplier" {% if user_type == 'supplier' %}selected{% endif %}>Supplier</option>
+                <option value="retailer" {% if user_type == 'retailer' %}selected{% endif %}>Retailer</option>
+            </select>
+            <button type="submit" class="btn btn-primary">Search</button>
+        </form>
+    </div>
+</div>
+
+{% if request.query_params.get('success') %}
+<div class="alert alert-success">
+    {{ request.query_params.get('success') }}
+</div>
+{% endif %}
+
+{% if request.query_params.get('error') %}
+<div class="alert alert-error">
+    {{ request.query_params.get('error') }}
+</div>
+{% endif %}
+
+<div class="table-container">
+    <table class="data-table">
+        <thead>
+            <tr>
+                <th>ID</th>
+                <th>Username</th>
+                <th>Full Name</th>
+                <th>Email</th>
+                <th>Phone</th>
+                <th>Type</th>
+                <th>Status</th>
+                <th>Created</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for user in users %}
+            <tr>
+                <td>{{ user.id }}</td>
+                <td>{{ user.username }}</td>
+                <td>{{ user.full_name or '-' }}</td>
+                <td>{{ user.email or '-' }}</td>
+                <td>{{ user.phone or '-' }}</td>
+                <td><span class="badge badge-{{ user.user_type }}">{{ user.user_type.value }}</span></td>
+                <td>
+                    {% if user.is_active %}
+                    <span class="badge badge-success">Active</span>
+                    {% else %}
+                    <span class="badge badge-danger">Inactive</span>
+                    {% endif %}
+                </td>
+                <td>{{ user.created_at.strftime('%Y-%m-%d') if user.created_at else '-' }}</td>
+                <td>
+                    <a href="/admin/users/{{ user.id }}/edit" class="btn btn-sm btn-info">Edit</a>
+                    <form method="POST" action="/admin/users/{{ user.id }}/toggle-active" style="display: inline;">
+                        <button type="submit" class="btn btn-sm btn-{{ 'danger' if user.is_active else 'success' }}">
+                            {{ 'Deactivate' if user.is_active else 'Activate' }}
+                        </button>
+                    </form>
+                    {% if user.id != admin_user.id %}
+                    <form method="POST" action="/admin/users/{{ user.id }}/delete" style="display: inline;" 
+                          onsubmit="return confirm('Are you sure you want to delete this user?');">
+                        <button type="submit" class="btn btn-sm btn-danger">Delete</button>
+                    </form>
+                    {% endif %}
+                </td>
+            </tr>
+            {% else %}
+            <tr>
+                <td colspan="9" class="text-center">No users found</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+{% if total_pages > 1 %}
+<div class="pagination">
+    {% if page > 1 %}
+    <a href="?page={{ page - 1 }}{% if search %}&search={{ search }}{% endif %}{% if user_type %}&user_type={{ user_type }}{% endif %}" class="btn">Previous</a>
+    {% endif %}
+    
+    <span>Page {{ page }} of {{ total_pages }} ({{ total }} total)</span>
+    
+    {% if page < total_pages %}
+    <a href="?page={{ page + 1 }}{% if search %}&search={{ search }}{% endif %}{% if user_type %}&user_type={{ user_type }}{% endif %}" class="btn">Next</a>
+    {% endif %}
+</div>
+{% endif %}
+{% endblock %}
+
+{% block extra_css %}
+<style>
+.alert {
+    padding: 16px;
+    border-radius: 6px;
+    margin-bottom: 24px;
+}
+
+.alert-success {
+    background: #dfd;
+    color: #3a3;
+    border: 1px solid #afa;
+}
+
+.alert-error {
+    background: #fee;
+    color: #c33;
+    border: 1px solid #fcc;
+}
+</style>
+{% endblock %}
+

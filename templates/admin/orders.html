@@ -1,0 +1,119 @@
+{% extends "admin/base.html" %}
+
+{% block page_title %}Orders Management{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>Orders Management</h1>
+    <div class="header-actions">
+        <form method="GET" action="/admin/orders" class="search-form">
+            <select name="status_filter">
+                <option value="">All Statuses</option>
+                <option value="pending" {% if status_filter == 'pending' %}selected{% endif %}>Pending</option>
+                <option value="confirmed" {% if status_filter == 'confirmed' %}selected{% endif %}>Confirmed</option>
+                <option value="processing" {% if status_filter == 'processing' %}selected{% endif %}>Processing</option>
+                <option value="shipped" {% if status_filter == 'shipped' %}selected{% endif %}>Shipped</option>
+                <option value="delivered" {% if status_filter == 'delivered' %}selected{% endif %}>Delivered</option>
+                <option value="cancelled" {% if status_filter == 'cancelled' %}selected{% endif %}>Cancelled</option>
+            </select>
+            <button type="submit" class="btn btn-primary">Filter</button>
+        </form>
+    </div>
+</div>
+
+{% if request.query_params.get('error') %}
+<div class="alert alert-error">
+    {{ request.query_params.get('error') }}
+</div>
+{% endif %}
+
+<div class="table-container">
+    <table class="data-table">
+        <thead>
+            <tr>
+                <th>ID</th>
+                <th>Customer</th>
+                <th>Seller</th>
+                <th>Items</th>
+                <th>Total</th>
+                <th>Status</th>
+                <th>Created</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for order in orders %}
+            <tr>
+                <td>{{ order.id }}</td>
+                <td>
+                    {% if order.customer_obj %}
+                    {{ order.customer_obj.username }}
+                    {% else %}
+                    User #{{ order.customer_id }}
+                    {% endif %}
+                </td>
+                <td>
+                    {% if order.seller_obj %}
+                    {{ order.seller_obj.username }}
+                    {% else %}
+                    User #{{ order.seller_id }}
+                    {% endif %}
+                </td>
+                <td>
+                    {% if order.items %}
+                        {{ order.items|length }} item(s)
+                    {% else %}
+                        0 item(s)
+                    {% endif %}
+                </td>
+                <td>{{ "{:,.2f}".format(order.total_amount) if order.total_amount else '0.00' }} SOK</td>
+                <td>
+                    <form method="POST" action="/admin/orders/{{ order.id }}/update-status" style="display: inline;">
+                        <select name="new_status" onchange="this.form.submit()" class="status-select">
+                            {% set order_status = order.status.value if order.status else 'pending' %}
+                            <option value="pending" {% if order_status == 'pending' %}selected{% endif %}>Pending</option>
+                            <option value="confirmed" {% if order_status == 'confirmed' %}selected{% endif %}>Confirmed</option>
+                            <option value="processing" {% if order_status == 'processing' %}selected{% endif %}>Processing</option>
+                            <option value="shipped" {% if order_status == 'shipped' %}selected{% endif %}>Shipped</option>
+                            <option value="delivered" {% if order_status == 'delivered' %}selected{% endif %}>Delivered</option>
+                            <option value="cancelled" {% if order_status == 'cancelled' %}selected{% endif %}>Cancelled</option>
+                        </select>
+                    </form>
+                </td>
+                <td>{{ order.created_at.strftime('%Y-%m-%d %H:%M') if order.created_at else '-' }}</td>
+                <td>
+                    <button class="btn btn-sm btn-info" onclick="viewOrderDetails({{ order.id }})">View</button>
+                </td>
+            </tr>
+            {% else %}
+            <tr>
+                <td colspan="8" class="text-center">No orders found</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+{% if total_pages > 1 %}
+<div class="pagination">
+    {% if page > 1 %}
+    <a href="?page={{ page - 1 }}{% if status_filter %}&status_filter={{ status_filter }}{% endif %}" class="btn">Previous</a>
+    {% endif %}
+    
+    <span>Page {{ page }} of {{ total_pages }} ({{ total }} total)</span>
+    
+    {% if page < total_pages %}
+    <a href="?page={{ page + 1 }}{% if status_filter %}&status_filter={{ status_filter }}{% endif %}" class="btn">Next</a>
+    {% endif %}
+</div>
+{% endif %}
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function viewOrderDetails(orderId) {
+    window.location.href = '/admin/orders/' + orderId;
+}
+</script>
+{% endblock %}
+

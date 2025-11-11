@@ -1,0 +1,292 @@
+{% extends "admin/base.html" %}
+
+{% block page_title %}Order Details #{{ order.id }}{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>Order Details #{{ order.id }}</h1>
+    <div class="header-actions">
+        <a href="/admin/orders" class="btn btn-secondary">← Back to Orders</a>
+    </div>
+</div>
+
+<div class="order-details-container">
+    <!-- Order Information Card -->
+    <div class="detail-card">
+        <h2>Order Information</h2>
+        <div class="detail-grid">
+            <div class="detail-item">
+                <label>Order ID:</label>
+                <span>{{ order.id }}</span>
+            </div>
+            <div class="detail-item">
+                <label>Status:</label>
+                <span>
+                    <form method="POST" action="/admin/orders/{{ order.id }}/update-status" style="display: inline;">
+                        <select name="new_status" onchange="this.form.submit()" class="status-select">
+                            {% set order_status = order.status.value if order.status else 'pending' %}
+                            <option value="pending" {% if order_status == 'pending' %}selected{% endif %}>Pending</option>
+                            <option value="confirmed" {% if order_status == 'confirmed' %}selected{% endif %}>Confirmed</option>
+                            <option value="processing" {% if order_status == 'processing' %}selected{% endif %}>Processing</option>
+                            <option value="shipped" {% if order_status == 'shipped' %}selected{% endif %}>Shipped</option>
+                            <option value="delivered" {% if order_status == 'delivered' %}selected{% endif %}>Delivered</option>
+                            <option value="cancelled" {% if order_status == 'cancelled' %}selected{% endif %}>Cancelled</option>
+                        </select>
+                    </form>
+                </span>
+            </div>
+            <div class="detail-item">
+                <label>Created At:</label>
+                <span>{{ order.created_at.strftime('%Y-%m-%d %H:%M:%S') if order.created_at else '-' }}</span>
+            </div>
+            <div class="detail-item">
+                <label>Updated At:</label>
+                <span>{{ order.updated_at.strftime('%Y-%m-%d %H:%M:%S') if order.updated_at else '-' }}</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Customer Information Card -->
+    <div class="detail-card">
+        <h2>Customer Information</h2>
+        <div class="detail-grid">
+            {% if order.customer_obj %}
+            <div class="detail-item">
+                <label>Username:</label>
+                <span>{{ order.customer_obj.username }}</span>
+            </div>
+            <div class="detail-item">
+                <label>Full Name:</label>
+                <span>{{ order.customer_obj.full_name or '-' }}</span>
+            </div>
+            <div class="detail-item">
+                <label>Email:</label>
+                <span>{{ order.customer_obj.email or '-' }}</span>
+            </div>
+            <div class="detail-item">
+                <label>Phone:</label>
+                <span>{{ order.customer_obj.phone or '-' }}</span>
+            </div>
+            <div class="detail-item">
+                <label>User Type:</label>
+                <span><span class="badge badge-{{ order.customer_obj.user_type.value }}">{{ order.customer_obj.user_type.value }}</span></span>
+            </div>
+            {% else %}
+            <div class="detail-item">
+                <label>Customer:</label>
+                <span>User #{{ order.customer_id }} (Not found)</span>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Seller Information Card -->
+    <div class="detail-card">
+        <h2>Seller Information</h2>
+        <div class="detail-grid">
+            {% if order.seller_obj %}
+            <div class="detail-item">
+                <label>Username:</label>
+                <span>{{ order.seller_obj.username }}</span>
+            </div>
+            <div class="detail-item">
+                <label>Full Name:</label>
+                <span>{{ order.seller_obj.full_name or '-' }}</span>
+            </div>
+            <div class="detail-item">
+                <label>Email:</label>
+                <span>{{ order.seller_obj.email or '-' }}</span>
+            </div>
+            <div class="detail-item">
+                <label>Phone:</label>
+                <span>{{ order.seller_obj.phone or '-' }}</span>
+            </div>
+            <div class="detail-item">
+                <label>User Type:</label>
+                <span><span class="badge badge-{{ order.seller_obj.user_type.value }}">{{ order.seller_obj.user_type.value }}</span></span>
+            </div>
+            {% else %}
+            <div class="detail-item">
+                <label>Seller:</label>
+                <span>User #{{ order.seller_id }} (Not found)</span>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Order Items Card -->
+    <div class="detail-card">
+        <h2>Order Items ({{ order.items|length if order.items else 0 }})</h2>
+        {% if order.items and order.items|length > 0 %}
+        <div class="table-container">
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Product</th>
+                        <th>Quantity</th>
+                        <th>Unit Price</th>
+                        <th>Subtotal</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for item in order.items %}
+                    <tr>
+                        <td>
+                            {% if item.product %}
+                            <div style="display: flex; align-items: center; gap: 10px;">
+                                {% if item.product.image_url %}
+                                <img src="{{ item.product.image_url }}" alt="{{ item.product.title }}" style="width: 50px; height: 50px; object-fit: cover; border-radius: 4px;">
+                                {% endif %}
+                                <div>
+                                    <strong>{{ item.product.title }}</strong>
+                                    <br>
+                                    <small class="text-muted">ID: {{ item.product.id }}</small>
+                                </div>
+                            </div>
+                            {% else %}
+                            Product #{{ item.product_id }} (Not found)
+                            {% endif %}
+                        </td>
+                        <td>{{ item.quantity }}</td>
+                        <td>{{ "{:,.2f}".format(item.price) if item.price else '0.00' }} SOK</td>
+                        <td>{{ "{:,.2f}".format(item.price * item.quantity) if item.price else '0.00' }} SOK</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <p class="text-muted">No items found in this order.</p>
+        {% endif %}
+    </div>
+
+    <!-- Payment & Shipping Information Card -->
+    <div class="detail-card">
+        <h2>Payment & Shipping</h2>
+        <div class="detail-grid">
+            <div class="detail-item">
+                <label>Total Amount:</label>
+                <span class="amount-large">{{ "{:,.2f}".format(order.total_amount) if order.total_amount else '0.00' }} SOK</span>
+            </div>
+            <div class="detail-item">
+                <label>Processing Fee:</label>
+                <span>{{ "{:,.2f}".format(order.processing_fee) if order.processing_fee else '0.00' }} SOK</span>
+            </div>
+            <div class="detail-item">
+                <label>Shipping Fee:</label>
+                <span>{{ "{:,.2f}".format(order.shipping_fee) if order.shipping_fee else '0.00' }} SOK</span>
+            </div>
+            {% if order.shipping_distance_km %}
+            <div class="detail-item">
+                <label>Shipping Distance:</label>
+                <span>{{ "{:.2f}".format(order.shipping_distance_km) }} km</span>
+            </div>
+            {% endif %}
+            <div class="detail-item">
+                <label>Includes Shipping:</label>
+                <span>
+                    {% if order.includes_shipping %}
+                    <span class="badge badge-success">Yes</span>
+                    {% else %}
+                    <span class="badge badge-secondary">No</span>
+                    {% endif %}
+                </span>
+            </div>
+            <div class="detail-item">
+                <label>Payment Method:</label>
+                <span>{{ order.payment_method or '-' }}</span>
+            </div>
+            <div class="detail-item">
+                <label>Payment Status:</label>
+                <span>
+                    {% if order.payment_status == 'paid' %}
+                    <span class="badge badge-success">Paid</span>
+                    {% elif order.payment_status == 'failed' %}
+                    <span class="badge badge-danger">Failed</span>
+                    {% else %}
+                    <span class="badge badge-warning">Pending</span>
+                    {% endif %}
+                </span>
+            </div>
+            {% if order.shipping_address %}
+            <div class="detail-item full-width">
+                <label>Shipping Address:</label>
+                <span>{{ order.shipping_address }}</span>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+.order-details-container {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+}
+
+.detail-card {
+    background: white;
+    border-radius: 8px;
+    padding: 24px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.detail-card h2 {
+    margin-top: 0;
+    margin-bottom: 20px;
+    color: #333;
+    font-size: 1.5em;
+    border-bottom: 2px solid #f0f0f0;
+    padding-bottom: 10px;
+}
+
+.detail-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: 16px;
+}
+
+.detail-item {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.detail-item.full-width {
+    grid-column: 1 / -1;
+}
+
+.detail-item label {
+    font-weight: 600;
+    color: #666;
+    font-size: 0.9em;
+}
+
+.detail-item span {
+    color: #333;
+    font-size: 1em;
+}
+
+.amount-large {
+    font-size: 1.5em;
+    font-weight: bold;
+    color: #2563eb;
+}
+
+.status-select {
+    padding: 6px 12px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    font-size: 0.9em;
+    cursor: pointer;
+}
+
+.status-select:hover {
+    border-color: #2563eb;
+}
+</style>
+{% endblock %}
+

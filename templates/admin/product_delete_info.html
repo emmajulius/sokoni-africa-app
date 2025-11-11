@@ -1,0 +1,129 @@
+{% extends "admin/base.html" %}
+
+{% block page_title %}Delete Product - {{ product.title }}{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>⚠️ Delete Product: {{ product.title }}</h1>
+    <a href="/admin/products" class="btn btn-primary">← Back to Products</a>
+</div>
+
+<div class="alert alert-error">
+    <h3>⚠️ Warning: This product is part of {{ orders|length }} order(s)</h3>
+    <p>Deleting this product will also remove it from the following orders. This action cannot be undone.</p>
+</div>
+
+<div class="product-info-card" style="background: white; padding: 24px; border-radius: 12px; margin-bottom: 24px; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);">
+    <h2>Product Information</h2>
+    <div style="display: grid; grid-template-columns: auto 1fr; gap: 12px 24px; margin-top: 16px;">
+        <strong>ID:</strong>
+        <span>{{ product.id }}</span>
+        
+        <strong>Title:</strong>
+        <span>{{ product.title }}</span>
+        
+        <strong>Price:</strong>
+        <span>{{ "{:,.2f}".format(product.price) }} SOK</span>
+        
+        <strong>Seller:</strong>
+        <span>{{ product.seller.username if product.seller else 'Unknown' }}</span>
+        
+        <strong>Category:</strong>
+        <span>{{ product.category or '-' }}</span>
+        
+        <strong>Type:</strong>
+        <span>{% if product.is_auction %}Auction{% else %}Regular{% endif %}</span>
+    </div>
+</div>
+
+<div class="related-data-card" style="background: white; padding: 24px; border-radius: 12px; margin-bottom: 24px; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);">
+    <h2>Related Data</h2>
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin-top: 16px;">
+        <div>
+            <strong>Orders:</strong>
+            <span class="badge badge-danger">{{ orders|length }}</span>
+        </div>
+        <div>
+            <strong>Cart Items:</strong>
+            <span class="badge badge-warning">{{ cart_items_count }}</span>
+        </div>
+        <div>
+            <strong>Bids:</strong>
+            <span class="badge badge-info">{{ bids_count }}</span>
+        </div>
+        <div>
+            <strong>Likes:</strong>
+            <span class="badge badge-success">{{ likes_count }}</span>
+        </div>
+        <div>
+            <strong>Comments:</strong>
+            <span class="badge badge-info">{{ comments_count }}</span>
+        </div>
+        <div>
+            <strong>Ratings:</strong>
+            <span class="badge badge-info">{{ ratings_count }}</span>
+        </div>
+        <div>
+            <strong>Saved:</strong>
+            <span class="badge badge-warning">{{ saved_count }}</span>
+        </div>
+    </div>
+</div>
+
+{% if orders %}
+<div class="orders-card" style="background: white; padding: 24px; border-radius: 12px; margin-bottom: 24px; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);">
+    <h2>Orders Containing This Product</h2>
+    <div class="table-container" style="margin-top: 16px;">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Order ID</th>
+                    <th>Customer</th>
+                    <th>Status</th>
+                    <th>Quantity</th>
+                    <th>Price</th>
+                    <th>Order Total</th>
+                    <th>Date</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for order in orders %}
+                    {% set order_item = order_items|selectattr("order_id", "equalto", order.id)|first %}
+                    <tr>
+                        <td>#{{ order.id }}</td>
+                        <td>{{ order.customer.username if order.customer else 'Unknown' }}</td>
+                        <td>
+                            <span class="badge badge-{{ 'success' if order.status == 'delivered' else 'warning' if order.status == 'pending' else 'info' }}">
+                                {{ order.status }}
+                            </span>
+                        </td>
+                        <td>{{ order_item.quantity if order_item else '-' }}</td>
+                        <td>{{ "{:,.2f}".format(order_item.price) if order_item else '-' }} SOK</td>
+                        <td>{{ "{:,.2f}".format(order.total_amount) }} SOK</td>
+                        <td>{{ order.created_at.strftime('%Y-%m-%d %H:%M') if order.created_at else '-' }}</td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endif %}
+
+<div class="delete-actions" style="background: white; padding: 24px; border-radius: 12px; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);">
+    <h2>Delete Options</h2>
+    <p style="margin: 16px 0; color: var(--text-muted);">
+        You can either cancel the deletion or force delete this product (which will remove it from all orders).
+    </p>
+    
+    <div style="display: flex; gap: 16px; margin-top: 24px;">
+        <a href="/admin/products" class="btn btn-primary">Cancel</a>
+        
+        <form method="POST" action="/admin/products/{{ product.id }}/delete" style="display: inline;" 
+              onsubmit="return confirm('⚠️ WARNING: This will permanently delete this product and remove it from {{ orders|length }} order(s). This action cannot be undone. Are you absolutely sure?');">
+            <input type="hidden" name="force" value="true">
+            <button type="submit" class="btn btn-danger">Force Delete Product</button>
+        </form>
+    </div>
+</div>
+{% endblock %}
+

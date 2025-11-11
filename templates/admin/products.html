@@ -1,0 +1,121 @@
+{% extends "admin/base.html" %}
+
+{% block page_title %}Products Management{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>Products Management</h1>
+    <div class="header-actions">
+        <form method="GET" action="/admin/products" class="search-form">
+            <input type="text" name="search" placeholder="Search products..." value="{{ search or '' }}">
+            <select name="category">
+                <option value="">All Categories</option>
+                {% for cat in categories %}
+                <option value="{{ cat.slug }}" {% if category == cat.slug %}selected{% endif %}>{{ cat.name }}</option>
+                {% endfor %}
+            </select>
+            <button type="submit" class="btn btn-primary">Search</button>
+        </form>
+    </div>
+</div>
+
+{% if request.query_params.get('error') %}
+<div class="alert alert-error">
+    {{ request.query_params.get('error') }}
+</div>
+{% endif %}
+
+{% if request.query_params.get('success') %}
+<div class="alert alert-success">
+    {{ request.query_params.get('success') }}
+</div>
+{% endif %}
+
+<div class="table-container">
+    <table class="data-table">
+        <thead>
+            <tr>
+                <th>ID</th>
+                <th>Image</th>
+                <th>Title</th>
+                <th>Seller</th>
+                <th>Price</th>
+                <th>Category</th>
+                <th>Type</th>
+                <th>Auction Status</th>
+                <th>Created</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for product in products %}
+            <tr>
+                <td>{{ product.id }}</td>
+                <td>
+                    {% if product.image_url or (product.images and product.images|length > 0) %}
+                    <img src="{{ product.image_url or product.images[0] }}" alt="{{ product.title }}" class="product-thumb">
+                    {% else %}
+                    <span class="text-muted">No image</span>
+                    {% endif %}
+                </td>
+                <td>{{ product.title }}</td>
+                <td>
+                    {% set seller = product.seller %}
+                    {{ seller.username if seller else 'Unknown' }}
+                </td>
+                <td>{{ "{:,.2f}".format(product.price) }} SOK</td>
+                <td>{{ product.category or '-' }}</td>
+                <td>
+                    {% if product.is_auction %}
+                    <span class="badge badge-warning">Auction</span>
+                    {% else %}
+                    <span class="badge badge-info">Regular</span>
+                    {% endif %}
+                </td>
+                <td>
+                    {% if product.is_auction %}
+                        {% if product.auction_status == 'active' %}
+                        <span class="badge badge-success">Active</span>
+                        {% elif product.auction_status == 'ended' %}
+                        <span class="badge badge-danger">Ended</span>
+                        {% elif product.auction_status == 'pending' %}
+                        <span class="badge badge-warning">Pending</span>
+                        {% else %}
+                        <span class="badge badge-info">{{ product.auction_status or 'N/A' }}</span>
+                        {% endif %}
+                    {% else %}
+                        <span class="badge badge-success">Available</span>
+                    {% endif %}
+                </td>
+                <td>{{ product.created_at.strftime('%Y-%m-%d') if product.created_at else '-' }}</td>
+                <td>
+                    <form method="POST" action="/admin/products/{{ product.id }}/delete" style="display: inline;"
+                          onsubmit="return confirm('Are you sure you want to delete this product?');">
+                        <button type="submit" class="btn btn-sm btn-danger">Delete</button>
+                    </form>
+                </td>
+            </tr>
+            {% else %}
+            <tr>
+                <td colspan="9" class="text-center">No products found</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+{% if total_pages > 1 %}
+<div class="pagination">
+    {% if page > 1 %}
+    <a href="?page={{ page - 1 }}{% if search %}&search={{ search }}{% endif %}{% if category %}&category={{ category }}{% endif %}" class="btn">Previous</a>
+    {% endif %}
+    
+    <span>Page {{ page }} of {{ total_pages }} ({{ total }} total)</span>
+    
+    {% if page < total_pages %}
+    <a href="?page={{ page + 1 }}{% if search %}&search={{ search }}{% endif %}{% if category %}&category={{ category }}{% endif %}" class="btn">Next</a>
+    {% endif %}
+</div>
+{% endif %}
+{% endblock %}
+

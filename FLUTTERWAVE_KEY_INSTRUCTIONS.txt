@@ -1,0 +1,27 @@
+"""
+Instructions for finding Flutterwave Secret Key
+"""
+print("=" * 70)
+print("FLUTTERWAVE API KEY SETUP INSTRUCTIONS")
+print("=" * 70)
+print()
+print("The error 'Invalid authorization key' means we need the Secret Key,")
+print("not the Client Secret. Here's how to find it:")
+print()
+print("1. Go to Flutterwave Dashboard: https://dashboard.flutterwave.com")
+print("2. Navigate to Settings → API Keys")
+print("3. Look for 'Secret Key' (not Client Secret)")
+print("   - Test Secret Key starts with: FLWSECK_TEST-")
+print("   - Live Secret Key starts with: FLWSECK-")
+print()
+print("4. Copy the Secret Key and update your .env file:")
+print("   FLW_SECRET_KEY=FLWSECK_TEST-xxxxxxxxxxxxxxxxxxxxx")
+print()
+print("NOTE: Client ID and Client Secret are for OAuth authentication.")
+print("      For direct API calls, you need the Secret Key.")
+print()
+print("=" * 70)
+print("Alternative: Check if your dashboard has a 'Secret Keys' tab")
+print("or 'API Keys' section separate from 'Test API keys'")
+print("=" * 70)
+

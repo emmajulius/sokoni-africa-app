@@ -1,0 +1,332 @@
+{% extends "admin/base.html" %}
+
+{% block page_title %}Edit User #{{ user.id }}{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>Edit User #{{ user.id }}</h1>
+    <div class="header-actions">
+        <a href="/admin/users" class="btn btn-secondary">← Back to Users</a>
+    </div>
+</div>
+
+{% if errors %}
+<div class="alert alert-error">
+    <ul style="margin: 0; padding-left: 20px;">
+        {% for error in errors %}
+        <li>{{ error }}</li>
+        {% endfor %}
+    </ul>
+</div>
+{% endif %}
+
+<div class="form-container">
+    <div class="form-card">
+        <form method="POST" action="/admin/users/{{ user.id }}/update" class="user-edit-form">
+            <div class="form-group">
+                <label for="username">Username *</label>
+                <input 
+                    type="text" 
+                    id="username" 
+                    name="username" 
+                    value="{{ user.username }}" 
+                    required 
+                    class="form-control"
+                >
+            </div>
+
+            <div class="form-group">
+                <label for="full_name">Full Name *</label>
+                <input 
+                    type="text" 
+                    id="full_name" 
+                    name="full_name" 
+                    value="{{ user.full_name or '' }}" 
+                    required 
+                    class="form-control"
+                >
+            </div>
+
+            <div class="form-group">
+                <label for="email">Email</label>
+                <input 
+                    type="email" 
+                    id="email" 
+                    name="email" 
+                    value="{{ user.email or '' }}" 
+                    class="form-control"
+                >
+                <small class="form-help">Leave empty to remove email</small>
+            </div>
+
+            <div class="form-group">
+                <label for="phone">Phone</label>
+                <input 
+                    type="text" 
+                    id="phone" 
+                    name="phone" 
+                    value="{{ user.phone or '' }}" 
+                    class="form-control"
+                >
+                <small class="form-help">Leave empty to remove phone</small>
+            </div>
+
+            <div class="form-group">
+                <label for="user_type">User Type *</label>
+                <select id="user_type" name="user_type" required class="form-control">
+                    <option value="client" {% if user.user_type.value == 'client' %}selected{% endif %}>Client</option>
+                    <option value="supplier" {% if user.user_type.value == 'supplier' %}selected{% endif %}>Supplier</option>
+                    <option value="retailer" {% if user.user_type.value == 'retailer' %}selected{% endif %}>Retailer</option>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label for="gender">Gender</label>
+                <select id="gender" name="gender" class="form-control">
+                    <option value="">Not specified</option>
+                    <option value="male" {% if user.gender and user.gender.value == 'male' %}selected{% endif %}>Male</option>
+                    <option value="female" {% if user.gender and user.gender.value == 'female' %}selected{% endif %}>Female</option>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label for="is_verified">
+                    <input 
+                        type="checkbox" 
+                        id="is_verified" 
+                        name="is_verified" 
+                        value="true"
+                        {% if user.is_verified %}checked{% endif %}
+                    >
+                    Verified Account
+                </label>
+                <small class="form-help">Check to mark user account as verified</small>
+            </div>
+
+            <div class="form-group">
+                <label for="location_address">Location Address</label>
+                <input 
+                    type="text" 
+                    id="location_address" 
+                    name="location_address" 
+                    value="{{ user.location_address or '' }}" 
+                    class="form-control"
+                    placeholder="Street address, city, country"
+                >
+            </div>
+
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="latitude">Latitude</label>
+                    <input 
+                        type="number" 
+                        id="latitude" 
+                        name="latitude" 
+                        value="{{ user.latitude or '' }}" 
+                        step="any"
+                        class="form-control"
+                        placeholder="e.g., -6.7924"
+                    >
+                </div>
+
+                <div class="form-group">
+                    <label for="longitude">Longitude</label>
+                    <input 
+                        type="number" 
+                        id="longitude" 
+                        name="longitude" 
+                        value="{{ user.longitude or '' }}" 
+                        step="any"
+                        class="form-control"
+                        placeholder="e.g., 39.2083"
+                    >
+                </div>
+            </div>
+
+            <div class="user-info-section">
+                <h3>Account Information</h3>
+                <div class="info-grid">
+                    <div class="info-item">
+                        <label>User ID:</label>
+                        <span>{{ user.id }}</span>
+                    </div>
+                    <div class="info-item">
+                        <label>Status:</label>
+                        <span>
+                            {% if user.is_active %}
+                            <span class="badge badge-success">Active</span>
+                            {% else %}
+                            <span class="badge badge-danger">Inactive</span>
+                            {% endif %}
+                        </span>
+                    </div>
+                    <div class="info-item">
+                        <label>Is Guest:</label>
+                        <span>
+                            {% if user.is_guest %}
+                            <span class="badge badge-warning">Yes</span>
+                            {% else %}
+                            <span class="badge badge-success">No</span>
+                            {% endif %}
+                        </span>
+                    </div>
+                    <div class="info-item">
+                        <label>Created At:</label>
+                        <span>{{ user.created_at.strftime('%Y-%m-%d %H:%M:%S') if user.created_at else '-' }}</span>
+                    </div>
+                    <div class="info-item">
+                        <label>Updated At:</label>
+                        <span>{{ user.updated_at.strftime('%Y-%m-%d %H:%M:%S') if user.updated_at else '-' }}</span>
+                    </div>
+                    {% if user.profile_image %}
+                    <div class="info-item full-width">
+                        <label>Profile Image:</label>
+                        <span><a href="{{ user.profile_image }}" target="_blank">{{ user.profile_image }}</a></span>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <div class="form-actions">
+                <button type="submit" class="btn btn-primary btn-large">Update User</button>
+                <a href="/admin/users" class="btn btn-secondary">Cancel</a>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+.form-container {
+    max-width: 800px;
+    margin: 0 auto;
+}
+
+.form-card {
+    background: white;
+    border-radius: 8px;
+    padding: 32px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.user-edit-form {
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+}
+
+.form-group {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.form-group label {
+    font-weight: 600;
+    color: #333;
+    font-size: 0.95em;
+}
+
+.form-group label input[type="checkbox"] {
+    margin-right: 8px;
+}
+
+.form-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+}
+
+.form-control {
+    padding: 12px;
+    border: 1px solid #ddd;
+    border-radius: 6px;
+    font-size: 1em;
+    transition: border-color 0.2s;
+}
+
+.form-control:focus {
+    outline: none;
+    border-color: #2563eb;
+    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+}
+
+.form-help {
+    font-size: 0.85em;
+    color: #666;
+    margin-top: -4px;
+}
+
+.user-info-section {
+    background: #f8f9fa;
+    border-radius: 6px;
+    padding: 20px;
+    margin-top: 8px;
+}
+
+.user-info-section h3 {
+    margin-top: 0;
+    margin-bottom: 16px;
+    color: #333;
+    font-size: 1.1em;
+}
+
+.info-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: 12px;
+}
+
+.info-item {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.info-item.full-width {
+    grid-column: 1 / -1;
+}
+
+.info-item label {
+    font-weight: 600;
+    color: #666;
+    font-size: 0.85em;
+}
+
+.info-item span {
+    color: #333;
+    font-size: 0.95em;
+}
+
+.form-actions {
+    display: flex;
+    gap: 12px;
+    margin-top: 8px;
+}
+
+.btn-large {
+    padding: 14px 28px;
+    font-size: 1.05em;
+}
+
+.alert {
+    padding: 16px;
+    border-radius: 6px;
+    margin-bottom: 24px;
+}
+
+.alert-error {
+    background: #fee;
+    color: #c33;
+    border: 1px solid #fcc;
+}
+
+.alert-success {
+    background: #dfd;
+    color: #3a3;
+    border: 1px solid #afa;
+}
+</style>
+{% endblock %}
+

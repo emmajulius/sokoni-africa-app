@@ -1,0 +1,669 @@
+{% extends "admin/base.html" %}
+
+{% block page_title %}Request Cashout{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>Request Cashout</h1>
+    <div class="header-actions">
+        <a href="/admin/fees" class="btn btn-secondary">← Back to Fees</a>
+    </div>
+</div>
+
+<div class="form-container">
+    <div class="form-card">
+        <div class="balance-display">
+            <h3>Available Balance</h3>
+            <p class="balance-amount">{{ "{:,.2f}".format(available_balance) }} SOK</p>
+        </div>
+
+        {% if error %}
+        <div class="alert alert-error">
+            {{ error }}
+        </div>
+        {% endif %}
+
+        <form method="POST" action="/admin/fees/cashout" class="cashout-form">
+            <div class="form-group">
+                <label for="amount">Amount (SOK) *</label>
+                <input 
+                    type="number" 
+                    id="amount" 
+                    name="amount" 
+                    step="0.01" 
+                    min="0.01" 
+                    max="{{ available_balance }}" 
+                    required 
+                    placeholder="Enter amount to cashout"
+                    class="form-control"
+                >
+                <small class="form-help">Maximum: {{ "{:,.2f}".format(available_balance) }} SOK</small>
+            </div>
+
+            <div class="form-group">
+                <label for="currency">Currency (Optional)</label>
+                <select id="currency" name="currency" class="form-control">
+                    <option value="">No currency conversion</option>
+                    <option value="TZS">TZS - Tanzanian Shilling</option>
+                    <option value="KES">KES - Kenyan Shilling</option>
+                    <option value="NGN">NGN - Nigerian Naira</option>
+                </select>
+                <small class="form-help">Select the local currency you want to receive. The amount will be converted using current exchange rates.</small>
+            </div>
+
+            <div class="form-group">
+                <label for="payout_method">Payout Method *</label>
+                <select id="payout_method" name="payout_method" required class="form-control" onchange="handlePayoutMethodChange()">
+                    <option value="">Select payout method</option>
+                    <option value="mobile_money">Mobile Money</option>
+                    <option value="bank_transfer">Bank Transfer</option>
+                </select>
+            </div>
+
+            <div id="mobile_money_fields">
+                <div class="form-group">
+                    <label for="payout_account">Phone Number *</label>
+                    <input 
+                        type="tel" 
+                        id="payout_account" 
+                        name="payout_account" 
+                        pattern="^(\+255[0-9]{9}|0[67][0-9]{8})$"
+                        placeholder="e.g., +255712345678 or 0712345678"
+                        class="form-control"
+                        maxlength="13"
+                    >
+                    <small class="form-help">Enter phone number in Tanzanian format: 10 digits starting with 07 or 06 (e.g., 0712345678) or with country code +255 (e.g., +255712345678)</small>
+                    <small class="form-error" id="payout_account_error" style="display: none; color: #ef4444;"></small>
+                </div>
+
+                <div class="form-group">
+                    <label for="payout_account_name">Account Holder Name</label>
+                    <input 
+                        type="text" 
+                        id="payout_account_name" 
+                        name="payout_account_name" 
+                        placeholder="Full name on the mobile money account"
+                        class="form-control"
+                        pattern="^[a-zA-Z\s'-]{2,100}$"
+                        maxlength="100"
+                    >
+                    <small class="form-help">Enter the full name as registered with your mobile money provider (2-100 characters, letters, spaces, hyphens, and apostrophes only)</small>
+                    <small class="form-error" id="payout_account_name_error" style="display: none; color: #ef4444;"></small>
+                </div>
+            </div>
+
+            <div id="bank_transfer_fields" style="display: none;">
+                <div class="form-group">
+                    <label for="bank_name">Bank Name *</label>
+                    <input 
+                        type="text" 
+                        id="bank_name" 
+                        name="bank_name" 
+                        placeholder="e.g., CRDB Bank, Equity Bank, Access Bank"
+                        class="form-control"
+                        pattern="^[a-zA-Z0-9\s&.,'-]{2,100}$"
+                        maxlength="100"
+                        required
+                    >
+                    <small class="form-help">Enter the official bank name (2-100 characters)</small>
+                    <small class="form-error" id="bank_name_error" style="display: none; color: #ef4444;"></small>
+                </div>
+
+                <div class="form-group">
+                    <label for="bank_account_number">Account Number *</label>
+                    <input 
+                        type="text" 
+                        id="bank_account_number" 
+                        name="bank_account_number" 
+                        placeholder="e.g., 0123456789"
+                        class="form-control"
+                        pattern="^[0-9A-Za-z]{8,20}$"
+                        maxlength="20"
+                        required
+                    >
+                    <small class="form-help">Enter bank account number (8-20 alphanumeric characters)</small>
+                    <small class="form-error" id="bank_account_number_error" style="display: none; color: #ef4444;"></small>
+                </div>
+
+                <div class="form-group">
+                    <label for="bank_account_holder">Account Holder Name *</label>
+                    <input 
+                        type="text" 
+                        id="bank_account_holder" 
+                        name="bank_account_holder" 
+                        placeholder="Full name as it appears on bank account"
+                        class="form-control"
+                        pattern="^[a-zA-Z\s'-]{2,100}$"
+                        maxlength="100"
+                        required
+                    >
+                    <small class="form-help">Enter the full name exactly as it appears on the bank account (2-100 characters)</small>
+                    <small class="form-error" id="bank_account_holder_error" style="display: none; color: #ef4444;"></small>
+                </div>
+
+                <div class="form-group">
+                    <label for="bank_branch">Bank Branch</label>
+                    <input 
+                        type="text" 
+                        id="bank_branch" 
+                        name="bank_branch" 
+                        placeholder="e.g., Dar es Salaam Main Branch"
+                        class="form-control"
+                        pattern="^[a-zA-Z0-9\s&.,'-]{2,100}$"
+                        maxlength="100"
+                    >
+                    <small class="form-help">Enter branch name or location (optional, 2-100 characters)</small>
+                    <small class="form-error" id="bank_branch_error" style="display: none; color: #ef4444;"></small>
+                </div>
+
+                <div class="form-group">
+                    <label for="bank_swift_code">SWIFT/BIC Code</label>
+                    <input 
+                        type="text" 
+                        id="bank_swift_code" 
+                        name="bank_swift_code" 
+                        placeholder="e.g., CRDBTZTZ or CRDBTZTZXXX"
+                        class="form-control"
+                        pattern="^[A-Z]{8}([A-Z]{3})?$"
+                        maxlength="11"
+                        style="text-transform: uppercase;"
+                    >
+                    <small class="form-help">Enter SWIFT/BIC code for international transfers (8 or 11 uppercase letters, optional)</small>
+                    <small class="form-error" id="bank_swift_code_error" style="display: none; color: #ef4444;"></small>
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label for="notes">Notes (Optional)</label>
+                <textarea 
+                    id="notes" 
+                    name="notes" 
+                    rows="4" 
+                    placeholder="Any additional notes or instructions"
+                    class="form-control"
+                ></textarea>
+            </div>
+
+            <div class="form-actions">
+                <button type="submit" class="btn btn-primary btn-large">Submit Cashout Request</button>
+                <a href="/admin/fees" class="btn btn-secondary">Cancel</a>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+.form-container {
+    max-width: 700px;
+    margin: 0 auto;
+}
+
+.form-card {
+    background: white;
+    border-radius: 8px;
+    padding: 32px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.balance-display {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    padding: 24px;
+    border-radius: 8px;
+    margin-bottom: 32px;
+    text-align: center;
+}
+
+.balance-display h3 {
+    margin: 0 0 8px 0;
+    font-size: 1em;
+    font-weight: 600;
+    opacity: 0.9;
+}
+
+.balance-amount {
+    margin: 0;
+    font-size: 2.5em;
+    font-weight: bold;
+}
+
+.cashout-form {
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+}
+
+.form-group {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.form-group label {
+    font-weight: 600;
+    color: #333;
+    font-size: 0.95em;
+}
+
+.form-control {
+    padding: 12px;
+    border: 1px solid #ddd;
+    border-radius: 6px;
+    font-size: 1em;
+    transition: border-color 0.2s;
+}
+
+.form-control:focus {
+    outline: none;
+    border-color: #2563eb;
+    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+}
+
+.form-help {
+    font-size: 0.85em;
+    color: #666;
+    margin-top: -4px;
+}
+
+.form-actions {
+    display: flex;
+    gap: 12px;
+    margin-top: 8px;
+}
+
+.btn-large {
+    padding: 14px 28px;
+    font-size: 1.05em;
+}
+
+.alert {
+    padding: 16px;
+    border-radius: 6px;
+    margin-bottom: 24px;
+}
+
+.alert-error {
+    background: #fee;
+    color: #c33;
+    border: 1px solid #fcc;
+}
+
+.form-error {
+    font-size: 0.85em;
+    margin-top: 4px;
+    display: block;
+}
+
+.form-control:invalid {
+    border-color: #ef4444;
+}
+
+.form-control:valid {
+    border-color: #10b981;
+}
+</style>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function handlePayoutMethodChange() {
+    const payoutMethod = document.getElementById('payout_method').value;
+    const mobileMoneyFields = document.getElementById('mobile_money_fields');
+    const bankTransferFields = document.getElementById('bank_transfer_fields');
+    const payoutAccount = document.getElementById('payout_account');
+    const payoutAccountName = document.getElementById('payout_account_name');
+    const bankName = document.getElementById('bank_name');
+    const bankAccountNumber = document.getElementById('bank_account_number');
+    const bankAccountHolder = document.getElementById('bank_account_holder');
+    const bankBranch = document.getElementById('bank_branch');
+    const bankSwiftCode = document.getElementById('bank_swift_code');
+    
+    if (payoutMethod === 'mobile_money') {
+        // Show mobile money fields
+        mobileMoneyFields.style.display = 'block';
+        bankTransferFields.style.display = 'none';
+        
+        // Set mobile money field requirements
+        payoutAccount.required = true;
+        payoutAccount.style.display = 'block';
+        payoutAccount.placeholder = 'Enter mobile money phone number';
+        payoutAccountName.required = false;
+        
+        // Clear bank fields requirements
+        if (bankName) bankName.required = false;
+        if (bankAccountNumber) bankAccountNumber.required = false;
+        if (bankAccountHolder) bankAccountHolder.required = false;
+        if (bankBranch) bankBranch.required = false;
+        if (bankSwiftCode) bankSwiftCode.required = false;
+        
+    } else if (payoutMethod === 'bank_transfer') {
+        // Show bank transfer fields
+        mobileMoneyFields.style.display = 'none';
+        bankTransferFields.style.display = 'block';
+        
+        // Hide mobile money fields but keep them in form for submission
+        payoutAccount.required = false;
+        payoutAccount.style.display = 'none';
+        payoutAccountName.required = false;
+        
+        // Set bank fields as required
+        if (bankName) bankName.required = true;
+        if (bankAccountNumber) bankAccountNumber.required = true;
+        if (bankAccountHolder) bankAccountHolder.required = true;
+        if (bankBranch) bankBranch.required = false; // Optional
+        if (bankSwiftCode) bankSwiftCode.required = false; // Optional
+        
+    } else {
+        // Default: hide both
+        mobileMoneyFields.style.display = 'none';
+        bankTransferFields.style.display = 'none';
+        payoutAccount.required = false;
+    }
+}
+
+// Validation functions
+function validatePhoneNumber(phone) {
+    // Remove spaces and dashes for validation
+    const cleaned = phone.replace(/[\s-]/g, '');
+    // Tanzanian format: +255 followed by 9 digits (total 13) OR 10 digits starting with 07 or 06
+    const pattern = /^(\+255[0-9]{9}|0[67][0-9]{8})$/;
+    return pattern.test(cleaned);
+}
+
+function validateBankAccountNumber(account) {
+    // 8-20 alphanumeric characters
+    const pattern = /^[0-9A-Za-z]{8,20}$/;
+    return pattern.test(account);
+}
+
+function validateName(name) {
+    // 2-100 characters, letters, spaces, hyphens, apostrophes
+    const pattern = /^[a-zA-Z\s'-]{2,100}$/;
+    return pattern.test(name);
+}
+
+function validateBankName(name) {
+    // 2-100 characters, alphanumeric, spaces, and common punctuation
+    const pattern = /^[a-zA-Z0-9\s&.,'-]{2,100}$/;
+    return pattern.test(name);
+}
+
+function validateSwiftCode(swift) {
+    // 8 or 11 uppercase letters
+    const pattern = /^[A-Z]{8}([A-Z]{3})?$/;
+    return pattern.test(swift);
+}
+
+function showFieldError(fieldId, message) {
+    const errorElement = document.getElementById(fieldId + '_error');
+    const field = document.getElementById(fieldId);
+    if (errorElement) {
+        errorElement.textContent = message;
+        errorElement.style.display = 'block';
+    }
+    if (field) {
+        field.style.borderColor = '#ef4444';
+    }
+}
+
+function hideFieldError(fieldId) {
+    const errorElement = document.getElementById(fieldId + '_error');
+    const field = document.getElementById(fieldId);
+    if (errorElement) {
+        errorElement.style.display = 'none';
+    }
+    if (field) {
+        field.style.borderColor = '#ddd';
+    }
+}
+
+// Initialize on page load
+document.addEventListener('DOMContentLoaded', function() {
+    handlePayoutMethodChange();
+    
+    // Phone number validation
+    const payoutAccount = document.getElementById('payout_account');
+    if (payoutAccount) {
+        payoutAccount.addEventListener('blur', function() {
+            const value = this.value.trim();
+            if (value && !validatePhoneNumber(value)) {
+                showFieldError('payout_account', 'Please enter a valid Tanzanian phone number: 10 digits starting with 07 or 06 (e.g., 0712345678) or with country code +255 (e.g., +255712345678)');
+            } else {
+                hideFieldError('payout_account');
+            }
+        });
+        
+        payoutAccount.addEventListener('input', function() {
+            // Remove non-digit characters except +
+            let value = this.value.replace(/[^\d+]/g, '');
+            // Ensure + is only at the start
+            if (value.includes('+') && value[0] !== '+') {
+                value = '+' + value.replace(/\+/g, '');
+            }
+            // If starts with +, ensure it's +255 format
+            if (value.startsWith('+')) {
+                if (value.length > 1 && !value.startsWith('+255')) {
+                    // If user types +2, +25, etc., allow it to become +255
+                    if (value.startsWith('+2')) {
+                        if (value.length === 2) {
+                            // Allow +2
+                        } else if (value.length === 3 && value.startsWith('+25')) {
+                            // Allow +25
+                        } else if (value.length >= 4 && value.startsWith('+255')) {
+                            // Limit to +255 followed by max 9 digits
+                            if (value.length > 13) {
+                                value = value.substring(0, 13);
+                            }
+                        } else {
+                            // Invalid format, reset to +255
+                            value = '+255';
+                        }
+                    } else {
+                        // Invalid, remove the +
+                        value = value.replace('+', '');
+                    }
+                } else if (value.startsWith('+255')) {
+                    // Limit to +255 followed by max 9 digits (total 13)
+                    if (value.length > 13) {
+                        value = value.substring(0, 13);
+                    }
+                }
+            } else if (value.length > 0) {
+                // Local format: must start with 0, then 6 or 7, then 8 more digits (total 10)
+                if (value[0] !== '0') {
+                    // If doesn't start with 0, check if it should
+                    if (value[0] === '6' || value[0] === '7') {
+                        value = '0' + value;
+                    }
+                }
+                // Ensure second digit is 6 or 7
+                if (value.length >= 2 && value[0] === '0' && value[1] !== '6' && value[1] !== '7') {
+                    // Invalid, keep only 0
+                    value = '0';
+                }
+                // Limit to 10 digits for local format
+                if (value.length > 10) {
+                    value = value.substring(0, 10);
+                }
+            }
+            this.value = value;
+            hideFieldError('payout_account');
+        });
+    }
+    
+    // Account holder name validation (mobile money)
+    const payoutAccountName = document.getElementById('payout_account_name');
+    if (payoutAccountName) {
+        payoutAccountName.addEventListener('blur', function() {
+            const value = this.value.trim();
+            if (value && !validateName(value)) {
+                showFieldError('payout_account_name', 'Name must be 2-100 characters and contain only letters, spaces, hyphens, and apostrophes');
+            } else {
+                hideFieldError('payout_account_name');
+            }
+        });
+    }
+    
+    // Bank name validation
+    const bankName = document.getElementById('bank_name');
+    if (bankName) {
+        bankName.addEventListener('blur', function() {
+            const value = this.value.trim();
+            if (value && !validateBankName(value)) {
+                showFieldError('bank_name', 'Bank name must be 2-100 characters');
+            } else {
+                hideFieldError('bank_name');
+            }
+        });
+    }
+    
+    // Bank account number validation
+    const bankAccountNumber = document.getElementById('bank_account_number');
+    if (bankAccountNumber) {
+        bankAccountNumber.addEventListener('blur', function() {
+            const value = this.value.trim();
+            if (value && !validateBankAccountNumber(value)) {
+                showFieldError('bank_account_number', 'Account number must be 8-20 alphanumeric characters');
+            } else {
+                hideFieldError('bank_account_number');
+            }
+        });
+        
+        bankAccountNumber.addEventListener('input', function() {
+            // Only allow alphanumeric
+            this.value = this.value.replace(/[^0-9A-Za-z]/g, '');
+            hideFieldError('bank_account_number');
+        });
+    }
+    
+    // Bank account holder validation
+    const bankAccountHolder = document.getElementById('bank_account_holder');
+    if (bankAccountHolder) {
+        bankAccountHolder.addEventListener('blur', function() {
+            const value = this.value.trim();
+            if (value && !validateName(value)) {
+                showFieldError('bank_account_holder', 'Name must be 2-100 characters and contain only letters, spaces, hyphens, and apostrophes');
+            } else {
+                hideFieldError('bank_account_holder');
+            }
+        });
+    }
+    
+    // Bank branch validation
+    const bankBranch = document.getElementById('bank_branch');
+    if (bankBranch) {
+        bankBranch.addEventListener('blur', function() {
+            const value = this.value.trim();
+            if (value && !validateBankName(value)) {
+                showFieldError('bank_branch', 'Branch name must be 2-100 characters');
+            } else {
+                hideFieldError('bank_branch');
+            }
+        });
+    }
+    
+    // SWIFT code validation
+    const bankSwiftCode = document.getElementById('bank_swift_code');
+    if (bankSwiftCode) {
+        bankSwiftCode.addEventListener('input', function() {
+            // Convert to uppercase and only allow letters
+            this.value = this.value.toUpperCase().replace(/[^A-Z]/g, '');
+            if (this.value.length > 11) {
+                this.value = this.value.substring(0, 11);
+            }
+            hideFieldError('bank_swift_code');
+        });
+        
+        bankSwiftCode.addEventListener('blur', function() {
+            const value = this.value.trim();
+            if (value && !validateSwiftCode(value)) {
+                showFieldError('bank_swift_code', 'SWIFT code must be 8 or 11 uppercase letters');
+            } else {
+                hideFieldError('bank_swift_code');
+            }
+        });
+    }
+    
+    // Sync bank account number to payout_account field for form submission
+    if (bankAccountNumber && payoutAccount) {
+        bankAccountNumber.addEventListener('input', function() {
+            // Sync to payout_account for backend processing
+            payoutAccount.value = this.value;
+        });
+    }
+    
+    if (bankAccountHolder && payoutAccountName) {
+        bankAccountHolder.addEventListener('input', function() {
+            // Sync to payout_account_name for backend processing
+            payoutAccountName.value = this.value;
+        });
+    }
+    
+    // Form validation before submission
+    const form = document.querySelector('.cashout-form');
+    if (form) {
+        form.addEventListener('submit', function(e) {
+            const payoutMethod = document.getElementById('payout_method').value;
+            let isValid = true;
+            
+            if (payoutMethod === 'mobile_money') {
+                const phone = payoutAccount.value.trim();
+                if (!phone || !validatePhoneNumber(phone)) {
+                    showFieldError('payout_account', 'Please enter a valid Tanzanian phone number: 10 digits starting with 07 or 06 (e.g., 0712345678) or with country code +255 (e.g., +255712345678)');
+                    isValid = false;
+                }
+                
+                const name = payoutAccountName.value.trim();
+                if (name && !validateName(name)) {
+                    showFieldError('payout_account_name', 'Please enter a valid name');
+                    isValid = false;
+                }
+            } else if (payoutMethod === 'bank_transfer') {
+                const bankNameValue = bankName.value.trim();
+                if (!bankNameValue || !validateBankName(bankNameValue)) {
+                    showFieldError('bank_name', 'Please enter a valid bank name');
+                    isValid = false;
+                }
+                
+                const accountNum = bankAccountNumber.value.trim();
+                if (!accountNum || !validateBankAccountNumber(accountNum)) {
+                    showFieldError('bank_account_number', 'Please enter a valid account number (8-20 alphanumeric characters)');
+                    isValid = false;
+                }
+                
+                const holder = bankAccountHolder.value.trim();
+                if (!holder || !validateName(holder)) {
+                    showFieldError('bank_account_holder', 'Please enter a valid account holder name');
+                    isValid = false;
+                }
+                
+                const branch = bankBranch.value.trim();
+                if (branch && !validateBankName(branch)) {
+                    showFieldError('bank_branch', 'Please enter a valid branch name');
+                    isValid = false;
+                }
+                
+                const swift = bankSwiftCode.value.trim();
+                if (swift && !validateSwiftCode(swift)) {
+                    showFieldError('bank_swift_code', 'Please enter a valid SWIFT code (8 or 11 uppercase letters)');
+                    isValid = false;
+                }
+                
+                // Ensure payout_account has the bank account number
+                if (isValid && accountNum) {
+                    payoutAccount.value = accountNum;
+                }
+            }
+            
+            if (!isValid) {
+                e.preventDefault();
+                return false;
+            }
+        });
+    }
+});
+</script>
+{% endblock %}
+

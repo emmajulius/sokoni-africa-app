@@ -1,0 +1,613 @@
+{% extends "admin/base.html" %}
+
+{% block page_title %}Cashout History{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>Cashout History</h1>
+    <div class="header-actions">
+        <form method="GET" action="/admin/fees/history" class="search-form">
+            <select name="status_filter">
+                <option value="">All Statuses</option>
+                <option value="pending" {% if status_filter == 'pending' %}selected{% endif %}>Pending</option>
+                <option value="approved" {% if status_filter == 'approved' %}selected{% endif %}>Approved</option>
+                <option value="processing" {% if status_filter == 'processing' %}selected{% endif %}>Processing</option>
+                <option value="completed" {% if status_filter == 'completed' %}selected{% endif %}>Completed</option>
+                <option value="rejected" {% if status_filter == 'rejected' %}selected{% endif %}>Rejected</option>
+                <option value="cancelled" {% if status_filter == 'cancelled' %}selected{% endif %}>Cancelled</option>
+            </select>
+            <button type="submit" class="btn btn-primary">Filter</button>
+        </form>
+        <a href="/admin/fees/cashout" class="btn btn-primary">💰 Request Cashout</a>
+        <a href="/admin/fees" class="btn btn-secondary">← Back to Fees</a>
+    </div>
+</div>
+
+{% if request.query_params.get('success') == '1' %}
+<!-- Success Popup Modal -->
+<div id="cashoutSuccessModal" class="modal" style="display: block;">
+    <div class="modal-content success-modal">
+        <div class="success-icon">✅</div>
+        <h2>Cashout Completed Successfully!</h2>
+        <div class="success-details">
+            {% set local_amount = request.query_params.get('local_amount') %}
+            {% set currency = request.query_params.get('currency') %}
+            {% set amount = request.query_params.get('amount') %}
+            {% if local_amount and currency %}
+            {% set local_amount_float = local_amount|float %}
+            <div class="success-amount">
+                <span class="amount-value">{{ "{:,.2f}".format(local_amount_float) }}</span>
+                <span class="amount-currency">{{ currency }}</span>
+            </div>
+            <p class="success-message">
+                The cashout value of <strong>{{ "{:,.2f}".format(local_amount_float) }} {{ currency }}</strong> 
+                has been successfully posted to the specified account.
+            </p>
+            {% elif amount %}
+            {% set amount_float = amount|float %}
+            <div class="success-amount">
+                <span class="amount-value">{{ "{:,.2f}".format(amount_float) }}</span>
+                <span class="amount-currency">SOK</span>
+            </div>
+            <p class="success-message">
+                The cashout value of <strong>{{ "{:,.2f}".format(amount_float) }} SOK</strong> 
+                has been successfully posted to the specified account.
+            </p>
+            {% endif %}
+            
+            <div class="success-info">
+                <div class="info-row">
+                    <span class="info-label">Payout Method:</span>
+                    <span class="info-value">{{ request.query_params.get('payout_method')|replace('_', ' ')|title }}</span>
+                </div>
+                <div class="info-row">
+                    <span class="info-label">Account:</span>
+                    <span class="info-value">{{ request.query_params.get('payout_account') }}</span>
+                </div>
+                <div class="info-row">
+                    <span class="info-label">Cashout ID:</span>
+                    <span class="info-value">#{{ request.query_params.get('cashout_id') }}</span>
+                </div>
+            </div>
+        </div>
+        <button onclick="closeSuccessModal()" class="btn btn-primary btn-large">OK</button>
+    </div>
+</div>
+{% elif request.query_params.get('success') %}
+<div class="alert alert-success">
+    {{ request.query_params.get('success') }}
+</div>
+{% endif %}
+
+{% if request.query_params.get('error') %}
+<div class="alert alert-error">
+    {{ request.query_params.get('error') }}
+</div>
+{% endif %}
+
+<div class="table-container">
+    <table class="data-table">
+        <thead>
+            <tr>
+                <th>ID</th>
+                <th>Amount</th>
+                <th>Payout Method</th>
+                <th>Account</th>
+                <th>Status</th>
+                <th>Requested</th>
+                <th>Processed</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for cashout in cashouts %}
+            <tr>
+                <td>#{{ cashout.id }}</td>
+                <td>
+                    <strong>{{ "{:,.2f}".format(cashout.amount) }} SOK</strong>
+                    {% if cashout.currency and cashout.local_currency_amount %}
+                    <br><small class="text-muted">{{ "{:,.2f}".format(cashout.local_currency_amount) }} {{ cashout.currency }}</small>
+                    {% endif %}
+                </td>
+                <td>{{ cashout.payout_method }}</td>
+                <td>
+                    {{ cashout.payout_account }}
+                    {% if cashout.payout_account_name %}
+                    <br><small class="text-muted">{{ cashout.payout_account_name }}</small>
+                    {% endif %}
+                </td>
+                <td>
+                    {% if cashout.status.value == 'pending' %}
+                    <span class="badge badge-warning">Pending</span>
+                    {% elif cashout.status.value == 'approved' %}
+                    <span class="badge badge-info">Approved</span>
+                    {% elif cashout.status.value == 'processing' %}
+                    <span class="badge badge-info">Processing</span>
+                    {% elif cashout.status.value == 'completed' %}
+                    <span class="badge badge-success">Completed</span>
+                    {% elif cashout.status.value == 'rejected' %}
+                    <span class="badge badge-danger">Rejected</span>
+                    {% elif cashout.status.value == 'cancelled' %}
+                    <span class="badge badge-secondary">Cancelled</span>
+                    {% endif %}
+                </td>
+                <td>{{ cashout.created_at.strftime('%Y-%m-%d %H:%M') if cashout.created_at else '-' }}</td>
+                <td>
+                    {% if cashout.processed_at %}
+                    {{ cashout.processed_at.strftime('%Y-%m-%d %H:%M') }}
+                    {% if cashout.processor_obj %}
+                    <br><small class="text-muted">by {{ cashout.processor_obj.username }}</small>
+                    {% endif %}
+                    {% else %}
+                    -
+                    {% endif %}
+                </td>
+                <td>
+                    <button class="btn btn-sm btn-info" onclick="viewCashoutDetails({{ cashout.id }})">View</button>
+                    <button class="btn btn-sm btn-danger" onclick="deleteCashout({{ cashout.id }}, '{{ cashout.status.value }}')" style="margin-left: 4px;">Delete</button>
+                </td>
+            </tr>
+            {% else %}
+            <tr>
+                <td colspan="8" class="text-center">No cashouts found</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+{% if total_pages > 1 %}
+<div class="pagination">
+    {% if page > 1 %}
+    <a href="?page={{ page - 1 }}{% if status_filter %}&status_filter={{ status_filter }}{% endif %}" class="btn">Previous</a>
+    {% endif %}
+    
+    <span>Page {{ page }} of {{ total_pages }} ({{ total }} total)</span>
+    
+    {% if page < total_pages %}
+    <a href="?page={{ page + 1 }}{% if status_filter %}&status_filter={{ status_filter }}{% endif %}" class="btn">Next</a>
+    {% endif %}
+</div>
+{% endif %}
+
+<!-- Cashout Details Modal -->
+<div id="cashoutModal" class="modal" style="display: none;">
+    <div class="modal-content">
+        <span class="close" onclick="closeCashoutModal()">&times;</span>
+        <div id="cashoutDetails"></div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function viewCashoutDetails(cashoutId) {
+    // Fetch cashout details and show in modal
+    fetch(`/admin/fees/cashout/${cashoutId}/details`)
+        .then(response => response.json())
+        .then(data => {
+            const modal = document.getElementById('cashoutModal');
+            const detailsDiv = document.getElementById('cashoutDetails');
+            
+            let html = `
+                <h2>Cashout Details #${data.id}</h2>
+                <div class="detail-grid">
+                    <div class="detail-item">
+                        <label>Amount:</label>
+                        <span><strong>${data.amount.toFixed(2)} SOK</strong></span>
+                    </div>
+                    ${data.currency && data.local_currency_amount ? `
+                    <div class="detail-item">
+                        <label>Local Currency:</label>
+                        <span><strong>${data.local_currency_amount.toFixed(2)} ${data.currency}</strong></span>
+                    </div>
+                    <div class="detail-item">
+                        <label>Exchange Rate:</label>
+                        <span>1 SOK = ${data.exchange_rate ? data.exchange_rate.toFixed(2) : 'N/A'} ${data.currency}</span>
+                    </div>
+                    ` : ''}
+                    <div class="detail-item">
+                        <label>Payout Method:</label>
+                        <span>${data.payout_method === 'mobile_money' ? 'Mobile Money' : 'Bank Transfer'}</span>
+                    </div>
+                    ${data.payout_method === 'mobile_money' ? `
+                    <div class="detail-item">
+                        <label>Phone Number:</label>
+                        <span>${data.payout_account}</span>
+                    </div>
+                    ${data.payout_account_name ? `
+                    <div class="detail-item">
+                        <label>Account Name:</label>
+                        <span>${data.payout_account_name}</span>
+                    </div>
+                    ` : ''}
+                    ` : data.payout_method === 'bank_transfer' ? `
+                    ${data.bank_name ? `
+                    <div class="detail-item">
+                        <label>Bank Name:</label>
+                        <span>${data.bank_name}</span>
+                    </div>
+                    ` : ''}
+                    <div class="detail-item">
+                        <label>Account Number:</label>
+                        <span>${data.bank_account_number || data.payout_account}</span>
+                    </div>
+                    ${data.bank_account_holder ? `
+                    <div class="detail-item">
+                        <label>Account Holder:</label>
+                        <span>${data.bank_account_holder}</span>
+                    </div>
+                    ` : data.payout_account_name ? `
+                    <div class="detail-item">
+                        <label>Account Holder:</label>
+                        <span>${data.payout_account_name}</span>
+                    </div>
+                    ` : ''}
+                    ${data.bank_branch ? `
+                    <div class="detail-item">
+                        <label>Bank Branch:</label>
+                        <span>${data.bank_branch}</span>
+                    </div>
+                    ` : ''}
+                    ${data.bank_swift_code ? `
+                    <div class="detail-item">
+                        <label>SWIFT/BIC Code:</label>
+                        <span>${data.bank_swift_code}</span>
+                    </div>
+                    ` : ''}
+                    ` : ''}
+                    <div class="detail-item">
+                        <label>Status:</label>
+                        <span>${data.status}</span>
+                    </div>
+                    <div class="detail-item">
+                        <label>Requested:</label>
+                        <span>${data.created_at}</span>
+                    </div>
+                    ${data.processed_at ? `
+                    <div class="detail-item">
+                        <label>Processed:</label>
+                        <span>${data.processed_at}</span>
+                    </div>
+                    ` : ''}
+                    ${data.notes ? `
+                    <div class="detail-item full-width">
+                        <label>Notes:</label>
+                        <span>${data.notes}</span>
+                    </div>
+                    ` : ''}
+                    ${data.rejection_reason ? `
+                    <div class="detail-item full-width">
+                        <label>Rejection Reason:</label>
+                        <span style="color: #c33;">${data.rejection_reason}</span>
+                    </div>
+                    ` : ''}
+                </div>
+                ${data.status === 'pending' || data.status === 'approved' || data.status === 'processing' ? `
+                <div style="margin-top: 24px; padding-top: 24px; border-top: 1px solid #eee;">
+                    <h3>Update Status</h3>
+                    <form method="POST" action="/admin/fees/cashout/${data.id}/update-status">
+                        <select name="new_status" id="statusSelect" class="form-control" style="margin-bottom: 12px;" onchange="toggleCurrencyField()">
+                            <option value="approved">Approve</option>
+                            <option value="processing">Mark as Processing</option>
+                            <option value="completed">Mark as Completed</option>
+                            <option value="rejected">Reject</option>
+                            <option value="cancelled">Cancel</option>
+                        </select>
+                        <div id="currencyField" style="display: none; margin-bottom: 12px;">
+                            <label for="currency" style="display: block; margin-bottom: 4px; font-weight: 600;">Currency *</label>
+                            <select name="currency" id="currency" class="form-control" required>
+                                <option value="">Select currency</option>
+                                <option value="TZS" ${data.currency === 'TZS' ? 'selected' : ''}>TZS - Tanzanian Shilling</option>
+                                <option value="KES" ${data.currency === 'KES' ? 'selected' : ''}>KES - Kenyan Shilling</option>
+                                <option value="NGN" ${data.currency === 'NGN' ? 'selected' : ''}>NGN - Nigerian Naira</option>
+                            </select>
+                            <small style="color: #666; font-size: 0.85em;">Required when completing cashout. Select the currency you want to receive.</small>
+                        </div>
+                        <textarea name="notes" placeholder="Notes (optional)" class="form-control" style="margin-bottom: 12px;">${data.notes || ''}</textarea>
+                        <button type="submit" class="btn btn-primary">Update Status</button>
+                    </form>
+                </div>
+                ` : ''}
+            `;
+            
+            detailsDiv.innerHTML = html;
+            modal.style.display = 'block';
+        })
+        .catch(error => {
+            console.error('Error fetching cashout details:', error);
+            alert('Error loading cashout details');
+        });
+}
+
+function toggleCurrencyField() {
+    const statusSelect = document.getElementById('statusSelect');
+    const currencyField = document.getElementById('currencyField');
+    const currencySelect = document.getElementById('currency');
+    
+    if (statusSelect && currencyField && currencySelect) {
+        if (statusSelect.value === 'completed') {
+            currencyField.style.display = 'block';
+            currencySelect.required = true;
+        } else {
+            currencyField.style.display = 'none';
+            currencySelect.required = false;
+        }
+    }
+}
+
+function closeCashoutModal() {
+    document.getElementById('cashoutModal').style.display = 'none';
+}
+
+function closeSuccessModal() {
+    const modal = document.getElementById('cashoutSuccessModal');
+    if (modal) {
+        modal.style.display = 'none';
+        // Remove success parameters from URL
+        const url = new URL(window.location);
+        url.searchParams.delete('success');
+        url.searchParams.delete('cashout_id');
+        url.searchParams.delete('amount');
+        url.searchParams.delete('currency');
+        url.searchParams.delete('local_amount');
+        url.searchParams.delete('payout_method');
+        url.searchParams.delete('payout_account');
+        window.history.replaceState({}, '', url);
+    }
+}
+
+function deleteCashout(cashoutId, status) {
+    // Warn if cashout is completed
+    let confirmMessage = 'Are you sure you want to delete this cashout?';
+    if (status === 'completed') {
+        confirmMessage = 'WARNING: This cashout is marked as COMPLETED. Deleting it will remove it from the system. Are you sure you want to proceed?';
+    }
+    
+    if (!confirm(confirmMessage)) {
+        return;
+    }
+    
+    // Create a form to submit DELETE request
+    const form = document.createElement('form');
+    form.method = 'POST';
+    form.action = `/admin/fees/cashout/${cashoutId}/delete`;
+    
+    // Add CSRF token if needed (using a hidden input)
+    const csrfInput = document.createElement('input');
+    csrfInput.type = 'hidden';
+    csrfInput.name = '_method';
+    csrfInput.value = 'DELETE';
+    form.appendChild(csrfInput);
+    
+    document.body.appendChild(form);
+    form.submit();
+}
+
+// Close modal when clicking outside
+window.onclick = function(event) {
+    const cashoutModal = document.getElementById('cashoutModal');
+    const successModal = document.getElementById('cashoutSuccessModal');
+    
+    if (cashoutModal && event.target == cashoutModal) {
+        cashoutModal.style.display = 'none';
+    }
+    
+    if (successModal && event.target == successModal) {
+        closeSuccessModal();
+    }
+}
+</script>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+.modal {
+    display: none;
+    position: fixed;
+    z-index: 1000;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    overflow: auto;
+    background-color: rgba(0,0,0,0.5);
+}
+
+.modal-content {
+    background-color: white;
+    margin: 5% auto;
+    padding: 32px;
+    border-radius: 8px;
+    width: 90%;
+    max-width: 700px;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+}
+
+.close {
+    color: #aaa;
+    float: right;
+    font-size: 28px;
+    font-weight: bold;
+    cursor: pointer;
+}
+
+.close:hover,
+.close:focus {
+    color: #000;
+}
+
+.detail-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: 16px;
+    margin-top: 20px;
+}
+
+.detail-item {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.detail-item.full-width {
+    grid-column: 1 / -1;
+}
+
+.detail-item label {
+    font-weight: 600;
+    color: #666;
+    font-size: 0.9em;
+}
+
+.detail-item span {
+    color: #333;
+    font-size: 1em;
+}
+
+.alert {
+    padding: 16px;
+    border-radius: 6px;
+    margin-bottom: 24px;
+}
+
+.alert-success {
+    background: #dfd;
+    color: #3a3;
+    border: 1px solid #afa;
+}
+
+.alert-error {
+    background: #fee;
+    color: #c33;
+    border: 1px solid #fcc;
+}
+
+/* Success Modal Styles */
+.success-modal {
+    text-align: center;
+    max-width: 500px;
+    animation: slideIn 0.3s ease-out;
+}
+
+@keyframes slideIn {
+    from {
+        transform: translateY(-50px);
+        opacity: 0;
+    }
+    to {
+        transform: translateY(0);
+        opacity: 1;
+    }
+}
+
+.success-icon {
+    font-size: 64px;
+    margin-bottom: 16px;
+    animation: scaleIn 0.5s ease-out;
+}
+
+@keyframes scaleIn {
+    from {
+        transform: scale(0);
+    }
+    to {
+        transform: scale(1);
+    }
+}
+
+.success-modal h2 {
+    color: #10b981;
+    margin: 0 0 24px 0;
+    font-size: 1.75em;
+}
+
+.success-details {
+    margin: 24px 0;
+}
+
+.success-amount {
+    display: flex;
+    align-items: baseline;
+    justify-content: center;
+    gap: 8px;
+    margin: 24px 0;
+    padding: 20px;
+    background: linear-gradient(135deg, #10b98115 0%, #05966915 100%);
+    border-radius: 8px;
+    border: 2px solid #10b98130;
+}
+
+.amount-value {
+    font-size: 2.5em;
+    font-weight: bold;
+    color: #10b981;
+}
+
+.amount-currency {
+    font-size: 1.5em;
+    font-weight: 600;
+    color: #059669;
+}
+
+.success-message {
+    font-size: 1.1em;
+    color: #333;
+    line-height: 1.6;
+    margin: 20px 0;
+}
+
+.success-message strong {
+    color: #10b981;
+    font-weight: 700;
+}
+
+.success-info {
+    background: #f8f9fa;
+    border-radius: 8px;
+    padding: 20px;
+    margin: 24px 0;
+    text-align: left;
+}
+
+.info-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px 0;
+    border-bottom: 1px solid #e5e7eb;
+}
+
+.info-row:last-child {
+    border-bottom: none;
+}
+
+.info-label {
+    font-weight: 600;
+    color: #666;
+    font-size: 0.95em;
+}
+
+.info-value {
+    color: #333;
+    font-weight: 500;
+    font-size: 1em;
+}
+
+.success-modal .btn-large {
+    margin-top: 16px;
+    padding: 14px 40px;
+    font-size: 1.1em;
+    background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+    border: none;
+    box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
+}
+
+.success-modal .btn-large:hover {
+    background: linear-gradient(135deg, #059669 0%, #047857 100%);
+    box-shadow: 0 6px 16px rgba(16, 185, 129, 0.4);
+    transform: translateY(-2px);
+}
+</style>
+{% endblock %}
+

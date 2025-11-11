@@ -1,0 +1,57 @@
+# ============================================
+# COMPLETE ENVIRONMENT VARIABLES FOR RENDER
+# Copy and paste these into Render's Environment Variables
+# ============================================
+
+# Database (Use Render's Internal Database URL)
+DATABASE_URL=postgresql://sokoni_database_mzl1_user:TyFRQ3OcwlI3G5VfhI7tMjLW2UuM69RL@dpg-d49hi9ali9vc739rodng-a.oregon-postgres.render.com:5432/sokoni_database_mzl1
+
+# Security
+SECRET_KEY=p1WCOZOhY7FMzewl_t8Z_bHy0m3cBgn4O7vRMJP67Eo
+ALGORITHM=HS256
+ACCESS_TOKEN_EXPIRE_MINUTES=30
+
+# App Configuration
+APP_BASE_URL=https://your-service-name.onrender.com
+DEBUG=False
+ENVIRONMENT=production
+
+# CORS
+ALLOWED_ORIGINS=*
+
+# Flutterwave (Payment Gateway)
+FLW_SECRET_KEY=FLWSECK_TEST-e25f53f15c89dc15411a09e51c26e4eb-X
+FLW_PUBLIC_KEY=FLWPUBK_TEST-0a6265a73c44593139d880c131b8d110-X
+FLW_ENCRYPTION_KEY=FLWSECK_TESTfef8b1fb7f50
+FLUTTERWAVE_BASE_URL=https://api.flutterwave.com/v3
+MOCK_CASHOUT_TRANSFERS=False
+MOCK_FLUTTERWAVE_TOPUPS=False
+
+# Email Configuration
+EMAIL_HOST=smtp.gmail.com
+EMAIL_PORT=587
+EMAIL_USE_TLS=True
+EMAIL_USERNAME=emmajulius2512@gmail.com
+EMAIL_PASSWORD=wyehxgjynsrvkphl
+EMAIL_FROM=emmajulius2512@gmail.com
+EMAIL_FROM_NAME=Sokoni Africa
+
+# Exchange Rates
+SOKOCOIN_EXCHANGE_RATE_TZS=1000.0
+SOKOCOIN_EXCHANGE_RATE_KES=52.6
+SOKOCOIN_EXCHANGE_RATE_NGN=585.0
+
+# Platform Fees
+PROCESSING_FEE_RATE=0.02
+SHIPPING_BASE_FEE_SOK=2.0
+SHIPPING_RATE_PER_KM_SOK=0.5
+SHIPPING_MIN_DISTANCE_KM=1.0
+
+# ============================================
+# IMPORTANT NOTES:
+# ============================================
+# 1. Replace "your-service-name" in APP_BASE_URL with your actual Render service name
+# 2. These are TEST Flutterwave keys - switch to LIVE keys for production
+# 3. Keep all keys secure - never commit to Git
+# ============================================
+
