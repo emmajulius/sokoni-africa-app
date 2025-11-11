@@ -150,10 +150,18 @@ async def admin_logout():
 @router.get("/admin", response_class=HTMLResponse)
 async def admin_dashboard(
     request: Request,
-    admin_user: User = Depends(get_admin_user),
     db: Session = Depends(get_db)
 ):
-    """Admin dashboard"""
+    """Admin dashboard - requires authentication"""
+    # Check authentication first
+    admin_user_result = await get_admin_user(request, db)
+    
+    # If redirect response, return it immediately
+    if isinstance(admin_user_result, RedirectResponse):
+        return admin_user_result
+    
+    # Otherwise, we have a valid admin user
+    admin_user = admin_user_result
     # Get statistics
     total_users = db.query(func.count(User.id)).filter(User.is_guest == False).scalar() or 0
     total_products = db.query(func.count(Product.id)).scalar() or 0
