@@ -439,16 +439,30 @@ function hideFieldError(fieldId) {
         if (amount > 0 && currency) {
             // Exchange rates (from config.py)
             // Reference: 1 SOK = 1000 TZS
-            // 1 TZS = 0.0527 KES => 1 SOK = 52.7 KES
-            // 1 TZS = 0.587 NGN => 1 SOK = 587 NGN
+            // 1 TZS = 0.0527 KES => 1 SOK = 1000 * 0.0527 = 52.7 KES
+            // 1 TZS = 0.587 NGN => 1 SOK = 1000 * 0.587 = 587 NGN
             const rates = {
                 'TZS': 1000.0,  // 1 SOK = 1000 TZS
                 'KES': 52.7,     // 1 SOK = 52.7 KES
                 'NGN': 587.0     // 1 SOK = 587 NGN
             };
             
-            const rate = rates[currency] || 1;
+            const rate = rates[currency];
+            if (!rate) {
+                previewDiv.style.display = 'none';
+                return;
+            }
+            
+            // Convert SOK to local currency: amount_in_sok * rate
             const convertedAmount = amount * rate;
+            
+            // Debug log (remove in production if needed)
+            console.log('Currency conversion:', {
+                amountSOK: amount,
+                currency: currency,
+                rate: rate,
+                convertedAmount: convertedAmount
+            });
             
             previewAmount.textContent = convertedAmount.toLocaleString('en-US', {
                 minimumFractionDigits: 2,
