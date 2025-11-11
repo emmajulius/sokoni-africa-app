@@ -1,8 +1,10 @@
 from fastapi import FastAPI, Depends, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy.orm import Session
 from starlette.requests import Request
+from starlette.responses import Response
 from database import engine, get_db
 from models import Base
 from config import settings
@@ -35,6 +37,9 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Add GZip compression for API responses (reduces data transfer)
+app.add_middleware(GZipMiddleware, minimum_size=1000)
+
 
 @app.middleware("http")
 async def add_private_network_cors_headers(request: Request, call_next):
@@ -43,9 +48,17 @@ async def add_private_network_cors_headers(request: Request, call_next):
     fetches targeting local/private network addresses. Without it, web
     clients using Authorization headers will fail their CORS preflight
     requests with "Failed to fetch".
+    Also add caching headers for API responses where appropriate.
     """
     response = await call_next(request)
     response.headers["Access-Control-Allow-Private-Network"] = "true"
+    
+    # Add cache headers for GET requests to API endpoints (short cache for dynamic data)
+    if request.method == "GET" and request.url.path.startswith("/api/"):
+        # Don't cache auth endpoints or user-specific data
+        if not any(path in request.url.path for path in ["/auth", "/users/me", "/cart", "/orders", "/wallet"]):
+            response.headers["Cache-Control"] = "public, max-age=60, stale-while-revalidate=300"
+    
     return response
 
 # Include routers
