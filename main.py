@@ -87,11 +87,12 @@ if uploads_dir.exists():
 
 @app.get("/")
 async def root():
-    return {
-        "message": "Welcome to Sokoni Africa API",
-        "version": "1.0.0",
-        "docs": "/docs"
-    }
+    """Root endpoint - blocked for security"""
+    from fastapi import HTTPException, status
+    raise HTTPException(
+        status_code=status.HTTP_404_NOT_FOUND,
+        detail="Not Found"
+    )
 
 
 @app.get("/api/health")
