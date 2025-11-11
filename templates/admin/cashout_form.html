@@ -49,6 +49,12 @@
                     <option value="NGN">NGN - Nigerian Naira</option>
                 </select>
                 <small class="form-help">Select the local currency you want to receive. The amount will be converted using current exchange rates.</small>
+                <div id="currency-preview" class="currency-preview" style="display: none; margin-top: 12px; padding: 12px; background: #f0f9ff; border-radius: 8px; border-left: 4px solid #3b82f6;">
+                    <p style="margin: 0; font-size: 14px; color: #1e40af;">
+                        <strong id="preview-amount">0.00</strong> <span id="preview-currency">TZS</span> 
+                        will be <strong>withdrawn</strong> and sent to your specified account.
+                    </p>
+                </div>
             </div>
 
             <div class="form-group">
@@ -419,9 +425,51 @@ function hideFieldError(fieldId) {
     }
 }
 
-// Initialize on page load
-document.addEventListener('DOMContentLoaded', function() {
-    handlePayoutMethodChange();
+    // Currency conversion preview
+    function updateCurrencyPreview() {
+        const amountInput = document.getElementById('amount');
+        const currencySelect = document.getElementById('currency');
+        const previewDiv = document.getElementById('currency-preview');
+        const previewAmount = document.getElementById('preview-amount');
+        const previewCurrency = document.getElementById('preview-currency');
+        
+        const amount = parseFloat(amountInput.value) || 0;
+        const currency = currencySelect.value;
+        
+        if (amount > 0 && currency) {
+            // Exchange rates (from config.py)
+            const rates = {
+                'TZS': 1000.0,  // 1 SOK = 1000 TZS
+                'KES': 52.6,     // 1 SOK = 52.6 KES
+                'NGN': 585.0     // 1 SOK = 585 NGN
+            };
+            
+            const rate = rates[currency] || 1;
+            const convertedAmount = amount * rate;
+            
+            previewAmount.textContent = convertedAmount.toLocaleString('en-US', {
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 2
+            });
+            previewCurrency.textContent = currency;
+            previewDiv.style.display = 'block';
+        } else {
+            previewDiv.style.display = 'none';
+        }
+    }
+    
+    // Initialize on page load
+    document.addEventListener('DOMContentLoaded', function() {
+        handlePayoutMethodChange();
+        
+        // Add currency conversion preview
+        const amountInput = document.getElementById('amount');
+        const currencySelect = document.getElementById('currency');
+        
+        if (amountInput && currencySelect) {
+            amountInput.addEventListener('input', updateCurrencyPreview);
+            currencySelect.addEventListener('change', updateCurrencyPreview);
+        }
     
     // Phone number validation
     const payoutAccount = document.getElementById('payout_account');

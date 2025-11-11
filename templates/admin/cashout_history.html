@@ -41,7 +41,7 @@
             </div>
             <p class="success-message">
                 The cashout value of <strong>{{ "{:,.2f}".format(local_amount_float) }} {{ currency }}</strong> 
-                has been successfully posted to the specified account.
+                has been successfully <strong>withdrawn</strong> and sent to the specified account.
             </p>
             {% elif amount %}
             {% set amount_float = amount|float %}
@@ -51,7 +51,7 @@
             </div>
             <p class="success-message">
                 The cashout value of <strong>{{ "{:,.2f}".format(amount_float) }} SOK</strong> 
-                has been successfully posted to the specified account.
+                has been successfully <strong>withdrawn</strong> and sent to the specified account.
             </p>
             {% endif %}
             
