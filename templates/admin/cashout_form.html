@@ -438,10 +438,13 @@ function hideFieldError(fieldId) {
         
         if (amount > 0 && currency) {
             // Exchange rates (from config.py)
+            // Reference: 1 SOK = 1000 TZS
+            // 1 TZS = 0.0527 KES => 1 SOK = 52.7 KES
+            // 1 TZS = 0.587 NGN => 1 SOK = 587 NGN
             const rates = {
                 'TZS': 1000.0,  // 1 SOK = 1000 TZS
-                'KES': 52.6,     // 1 SOK = 52.6 KES
-                'NGN': 585.0     // 1 SOK = 585 NGN
+                'KES': 52.7,     // 1 SOK = 52.7 KES
+                'NGN': 587.0     // 1 SOK = 587 NGN
             };
             
             const rate = rates[currency] || 1;

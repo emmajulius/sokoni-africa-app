@@ -67,12 +67,12 @@ if HAS_V2:
         # Sokocoin Exchange Rate (1 Sokocoin = X local currency)
         # This can be configured per currency
         # Base conversion:
-        # 1 SOK = 1000 TZS
-        # 1 TZS = 0.0526 KES  => 1 SOK = 52.6 KES
-        # 1 TZS = 0.585  NGN  => 1 SOK = 585 NGN
+        # 1 SOK = 1000 TZS (reference)
+        # 1 TZS = 0.0527 KES  => 1 SOK = 52.7 KES
+        # 1 TZS = 0.587  NGN  => 1 SOK = 587 NGN
         SOKOCOIN_EXCHANGE_RATE_TZS: float = 1000.0  # 1 Sokocoin = 1000 TZS
-        SOKOCOIN_EXCHANGE_RATE_KES: float = 52.6    # 1 Sokocoin = 52.6 KES
-        SOKOCOIN_EXCHANGE_RATE_NGN: float = 585.0   # 1 Sokocoin = 585 NGN
+        SOKOCOIN_EXCHANGE_RATE_KES: float = 52.7    # 1 Sokocoin = 52.7 KES
+        SOKOCOIN_EXCHANGE_RATE_NGN: float = 587.0   # 1 Sokocoin = 587 NGN
         
         # Platform fees
         PROCESSING_FEE_RATE: float = 0.02  # 2% processing fee
@@ -156,12 +156,12 @@ else:
         # Sokocoin Exchange Rate (1 Sokocoin = X local currency)
         # This can be configured per currency
         # Base conversion:
-        # 1 SOK = 1000 TZS
-        # 1 TZS = 0.0526 KES  => 1 SOK = 52.6 KES
-        # 1 TZS = 0.585  NGN  => 1 SOK = 585 NGN
+        # 1 SOK = 1000 TZS (reference)
+        # 1 TZS = 0.0527 KES  => 1 SOK = 52.7 KES
+        # 1 TZS = 0.587  NGN  => 1 SOK = 587 NGN
         SOKOCOIN_EXCHANGE_RATE_TZS: float = 1000.0  # 1 Sokocoin = 1000 TZS
-        SOKOCOIN_EXCHANGE_RATE_KES: float = 52.6    # 1 Sokocoin = 52.6 KES
-        SOKOCOIN_EXCHANGE_RATE_NGN: float = 585.0   # 1 Sokocoin = 585 NGN
+        SOKOCOIN_EXCHANGE_RATE_KES: float = 52.7    # 1 Sokocoin = 52.7 KES
+        SOKOCOIN_EXCHANGE_RATE_NGN: float = 587.0   # 1 Sokocoin = 587 NGN
         
         # Platform fees
         PROCESSING_FEE_RATE: float = 0.02  # 2% processing fee

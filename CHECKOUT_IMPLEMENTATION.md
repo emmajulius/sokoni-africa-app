@@ -13,15 +13,18 @@ This document describes the complete real-time checkout implementation using Sok
 5. **Wallet transactions** are created for both buyer (PURCHASE) and seller (EARN)
 
 ### Exchange Rates
-- **TZS**: 1 SOK = 1000 TZS
-- **KES**: 1 SOK = 0.05 KES  
-- **NGN**: 1 SOK = 0.5 NGN
+- **TZS**: 1 SOK = 1000 TZS (reference)
+- **KES**: 1 SOK = 52.7 KES (1 TZS = 0.0527 KES)
+- **NGN**: 1 SOK = 587 NGN (1 TZS = 0.587 NGN)
 
 These rates are configurable in `config.py`:
 ```python
+# Reference: 1 SOK = 1000 TZS
+# 1 TZS = 0.0527 KES => 1 SOK = 52.7 KES
+# 1 TZS = 0.587 NGN => 1 SOK = 587 NGN
 SOKOCOIN_EXCHANGE_RATE_TZS: float = 1000.0
-SOKOCOIN_EXCHANGE_RATE_KES: float = 52.6
-SOKOCOIN_EXCHANGE_RATE_NGN: float = 585.0
+SOKOCOIN_EXCHANGE_RATE_KES: float = 52.7
+SOKOCOIN_EXCHANGE_RATE_NGN: float = 587.0
 ```
 
 ## Backend Implementation
@@ -211,9 +214,12 @@ Navigate to Main Screen
 
 ### Backend (.env)
 ```env
+# Reference: 1 SOK = 1000 TZS
+# 1 TZS = 0.0527 KES => 1 SOK = 52.7 KES
+# 1 TZS = 0.587 NGN => 1 SOK = 587 NGN
 SOKOCOIN_EXCHANGE_RATE_TZS=1000.0
-SOKOCOIN_EXCHANGE_RATE_KES=52.6
-SOKOCOIN_EXCHANGE_RATE_NGN=585.0
+SOKOCOIN_EXCHANGE_RATE_KES=52.7
+SOKOCOIN_EXCHANGE_RATE_NGN=587.0
 ```
 
 ### Frontend (constants.dart)

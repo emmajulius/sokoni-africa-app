@@ -57,9 +57,12 @@ This allows your mobile app to connect. You can restrict this later if needed.
 
 ### Exchange Rates (Optional - defaults are in config.py)
 ```
+# Reference: 1 SOK = 1000 TZS
+# 1 TZS = 0.0527 KES => 1 SOK = 52.7 KES
+# 1 TZS = 0.587 NGN => 1 SOK = 587 NGN
 SOKOCOIN_EXCHANGE_RATE_TZS=1000.0
-SOKOCOIN_EXCHANGE_RATE_KES=52.6
-SOKOCOIN_EXCHANGE_RATE_NGN=585.0
+SOKOCOIN_EXCHANGE_RATE_KES=52.7
+SOKOCOIN_EXCHANGE_RATE_NGN=587.0
 ```
 
 ### Platform Fees (Optional - defaults are in config.py)
@@ -175,9 +178,12 @@ EMAIL_FROM=your-email@gmail.com
 EMAIL_FROM_NAME=Research Gears
 
 # Exchange Rates (optional - defaults in config.py)
+# Reference: 1 SOK = 1000 TZS
+# 1 TZS = 0.0527 KES => 1 SOK = 52.7 KES
+# 1 TZS = 0.587 NGN => 1 SOK = 587 NGN
 SOKOCOIN_EXCHANGE_RATE_TZS=1000.0
-SOKOCOIN_EXCHANGE_RATE_KES=52.6
-SOKOCOIN_EXCHANGE_RATE_NGN=585.0
+SOKOCOIN_EXCHANGE_RATE_KES=52.7
+SOKOCOIN_EXCHANGE_RATE_NGN=587.0
 
 # Platform Fees (optional - defaults in config.py)
 PROCESSING_FEE_RATE=0.02
