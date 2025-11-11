@@ -5,42 +5,107 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Admin Login - Sokoni Africa</title>
     <link rel="stylesheet" href="/static/admin/css/style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 </head>
 <body>
     <div class="login-container">
+        <div class="login-background">
+            <div class="login-shapes">
+                <div class="shape shape-1"></div>
+                <div class="shape shape-2"></div>
+                <div class="shape shape-3"></div>
+            </div>
+        </div>
+        
         <div class="login-card">
             <div class="login-header">
+                <div class="login-logo">
+                    <i class="fas fa-store"></i>
+                </div>
                 <h1>Sokoni Africa</h1>
-                <p>Admin Panel Login</p>
+                <p>Admin Panel</p>
             </div>
             
             {% if expired %}
             <div class="alert alert-warning">
-                Your session has expired. Please login again.
+                <i class="fas fa-exclamation-triangle"></i>
+                <span>Your session has expired. Please login again.</span>
             </div>
             {% endif %}
             
             {% if error %}
             <div class="alert alert-error">
-                {{ error }}
+                <i class="fas fa-times-circle"></i>
+                <span>{{ error }}</span>
             </div>
             {% endif %}
             
             <form method="POST" action="/admin/login" class="login-form">
                 <div class="form-group">
-                    <label for="username">Username or Email</label>
-                    <input type="text" id="username" name="username" required autofocus>
+                    <label for="username">
+                        <i class="fas fa-user"></i>
+                        Username or Email
+                    </label>
+                    <div class="input-wrapper">
+                        <i class="fas fa-user input-icon"></i>
+                        <input type="text" id="username" name="username" placeholder="Enter your username or email" required autofocus>
+                    </div>
                 </div>
                 
                 <div class="form-group">
-                    <label for="password">Password</label>
-                    <input type="password" id="password" name="password" required>
+                    <label for="password">
+                        <i class="fas fa-lock"></i>
+                        Password
+                    </label>
+                    <div class="input-wrapper">
+                        <i class="fas fa-lock input-icon"></i>
+                        <input type="password" id="password" name="password" placeholder="Enter your password" required>
+                        <button type="button" class="password-toggle" id="passwordToggle">
+                            <i class="fas fa-eye"></i>
+                        </button>
+                    </div>
                 </div>
                 
-                <button type="submit" class="btn btn-primary btn-block">Login</button>
+                <button type="submit" class="btn btn-primary btn-block btn-login">
+                    <span>Sign In</span>
+                    <i class="fas fa-arrow-right"></i>
+                </button>
             </form>
+            
+            <div class="login-footer">
+                <p><i class="fas fa-shield-alt"></i> Secure Admin Access</p>
+            </div>
         </div>
     </div>
+    
+    <script>
+        // Password toggle functionality
+        const passwordToggle = document.getElementById('passwordToggle');
+        const passwordInput = document.getElementById('password');
+        
+        if (passwordToggle) {
+            passwordToggle.addEventListener('click', function() {
+                const type = passwordInput.getAttribute('type') === 'password' ? 'text' : 'password';
+                passwordInput.setAttribute('type', type);
+                
+                const icon = this.querySelector('i');
+                icon.classList.toggle('fa-eye');
+                icon.classList.toggle('fa-eye-slash');
+            });
+        }
+        
+        // Form submission animation
+        const form = document.querySelector('.login-form');
+        if (form) {
+            form.addEventListener('submit', function(e) {
+                const btn = this.querySelector('.btn-login');
+                if (btn) {
+                    btn.classList.add('loading');
+                    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Signing in...';
+                }
+            });
+        }
+    </script>
 </body>
 </html>
 
