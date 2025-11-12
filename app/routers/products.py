@@ -155,17 +155,22 @@ async def get_products(
     latitude: Optional[float] = Query(None, description="User's latitude for location-based sorting"),
     longitude: Optional[float] = Query(None, description="User's longitude for location-based sorting"),
     skip: int = Query(0, ge=0),
-    limit: int = Query(100, ge=1, le=100),
+    limit: int = Query(20, ge=1, le=50),  # Reduced from 100 to 20 for faster loading
     current_user: Optional[User] = Depends(get_current_user_optional),
     db: Session = Depends(get_db)
 ):
     """Get all products with optional filtering and location-based sorting"""
     try:
-        # Cleanup expired auctions (24 hours after end) - do this occasionally
-        from app.routers.auctions import _cleanup_expired_auctions
-        _cleanup_expired_auctions(db, force=False)
+        # Cleanup expired auctions - only run occasionally (not on every request for performance)
+        # Run cleanup only 10% of the time to reduce overhead
+        import random
+        if random.random() < 0.1:  # 10% chance
+            from app.routers.auctions import _cleanup_expired_auctions
+            _cleanup_expired_auctions(db, force=False)
         
-        query = db.query(Product)
+        # Use eager loading to prevent N+1 queries
+        from sqlalchemy.orm import joinedload
+        query = db.query(Product).options(joinedload(Product.seller))
 
         if category:
             query = query.filter(Product.category == category.lower())
@@ -195,7 +200,8 @@ async def get_products(
         )
         
         query = query.order_by(desc(Product.created_at))
-        products = query.offset(skip).limit(limit * 2).all()
+        # Only load the exact number needed (not limit * 2) for better performance
+        products = query.offset(skip).limit(limit + 10 if latitude and longitude else limit).all()
 
         print(f"\n{'='*60}")
         print("GET PRODUCTS QUERY")
@@ -214,25 +220,95 @@ async def get_products(
             user_lat = current_user.latitude
             user_lon = current_user.longitude
 
-        for product in products:
-            try:
-                seller = db.query(User).filter(User.id == product.seller_id).first()
-            except Exception as e:
-                print(f"ERROR: Failed to load seller for product {product.id}: {e}")
-                traceback.print_exc()
-                seller = None
+        # Batch load engagement stats for all products at once (optimize N+1 queries)
+        product_ids = [p.id for p in products]
+        
+        # Batch load likes count
+        likes_counts = {}
+        if product_ids:
+            likes_data = db.query(
+                ProductLike.product_id,
+                func.count(ProductLike.id).label('count')
+            ).filter(ProductLike.product_id.in_(product_ids)).group_by(ProductLike.product_id).all()
+            likes_counts = {pid: count for pid, count in likes_data}
+        
+        # Batch load comments count
+        comments_counts = {}
+        if product_ids:
+            comments_data = db.query(
+                ProductComment.product_id,
+                func.count(ProductComment.id).label('count')
+            ).filter(ProductComment.product_id.in_(product_ids)).group_by(ProductComment.product_id).all()
+            comments_counts = {pid: count for pid, count in comments_data}
+        
+        # Batch load ratings
+        ratings_data = {}
+        if product_ids:
+            ratings_query = db.query(
+                ProductRating.product_id,
+                func.avg(ProductRating.rating).label('avg_rating')
+            ).filter(ProductRating.product_id.in_(product_ids)).group_by(ProductRating.product_id).all()
+            ratings_data = {pid: float(avg) if avg else 0.0 for pid, avg in ratings_query}
+        
+        # Batch load user likes (if authenticated)
+        user_liked_products = set()
+        if current_user_id and product_ids:
+            user_likes = db.query(ProductLike.product_id).filter(
+                ProductLike.product_id.in_(product_ids),
+                ProductLike.user_id == current_user_id
+            ).all()
+            user_liked_products = {like[0] for like in user_likes}
+        
+        # Batch load bidders for auctions
+        bidder_map = {}
+        bid_counts_map = {}
+        auction_product_ids = [p.id for p in products if p.is_auction]
+        if auction_product_ids:
+            # Batch update auction statuses (much faster than per-product)
+            from app.routers.auctions import _check_and_update_auction_status
+            now = datetime.now(timezone.utc)
+            for product in products:
+                if product.is_auction and product.auction_end_time and product.auction_end_time < now:
+                    # Only update if status is not already "ended"
+                    if product.auction_status != "ended":
+                        try:
+                            _check_and_update_auction_status(product, db)
+                        except Exception as e:
+                            print(f"Warning: Failed to update auction status for product {product.id}: {e}")
+            db.commit()  # Commit all status updates at once
+            
+            # Batch load bid counts
+            bid_counts_data = db.query(
+                Bid.product_id,
+                func.count(Bid.id).label('count')
+            ).filter(Bid.product_id.in_(auction_product_ids)).group_by(Bid.product_id).all()
+            bid_counts_map = {pid: count for pid, count in bid_counts_data}
+            
+            # Batch load current bidders
+            current_bidder_ids = {p.id: p.current_bidder_id for p in products if p.is_auction and p.current_bidder_id}
+            if current_bidder_ids:
+                bidder_user_ids = list(set(current_bidder_ids.values()))
+                bidders = db.query(User.id, User.username).filter(User.id.in_(bidder_user_ids)).all()
+                bidder_username_map = {uid: username for uid, username in bidders}
+                bidder_map = {pid: bidder_username_map.get(bidder_id) for pid, bidder_id in current_bidder_ids.items()}
 
-            try:
-                engagement = _calculate_product_engagement(product, db, current_user_id)
-            except Exception as e:
-                print(f"ERROR: Failed to calculate engagement for product {product.id}: {e}")
-                traceback.print_exc()
-                engagement = {
-                    'likes': 0,
-                    'comments': 0,
-                    'rating': 0.0,
-                    'is_liked': False,
-                }
+        for product in products:
+            # Use eager-loaded seller (no additional query)
+            seller = product.seller if hasattr(product, 'seller') else None
+            if not seller:
+                try:
+                    seller = db.query(User).filter(User.id == product.seller_id).first()
+                except Exception as e:
+                    print(f"ERROR: Failed to load seller for product {product.id}: {e}")
+                    seller = None
+
+            # Use batch-loaded engagement stats
+            engagement = {
+                'likes': likes_counts.get(product.id, 0),
+                'comments': comments_counts.get(product.id, 0),
+                'rating': ratings_data.get(product.id, 0.0),
+                'is_liked': product.id in user_liked_products,
+            }
 
             distance = None
             try:
@@ -247,17 +323,13 @@ async def get_products(
                 traceback.print_exc()
                 distance = None
 
-            # Calculate auction fields if it's an auction
+            # Calculate auction fields if it's an auction (using batch-loaded data)
             time_remaining_seconds = None
             bid_count = None
             current_bidder_username = None
             if product.is_auction:
                 try:
-                    # Update auction status
-                    from app.routers.auctions import _check_and_update_auction_status
-                    _check_and_update_auction_status(product, db)
-                    db.refresh(product)
-                    
+                    # Status already updated in batch above, just refresh if needed
                     if product.auction_end_time:
                         now = datetime.now(timezone.utc)
                         if product.auction_end_time.tzinfo is None:
@@ -267,13 +339,11 @@ async def get_products(
                         remaining = (auction_end - now).total_seconds()
                         time_remaining_seconds = max(0, int(remaining))
                     
-                    # Get bid count
-                    bid_count = db.query(func.count(Bid.id)).filter(Bid.product_id == product.id).scalar() or 0
+                    # Use batch-loaded bid count
+                    bid_count = bid_counts_map.get(product.id, 0)
                     
-                    # Get current bidder username
-                    if product.current_bidder_id:
-                        bidder = db.query(User).filter(User.id == product.current_bidder_id).first()
-                        current_bidder_username = bidder.username if bidder else None
+                    # Use batch-loaded bidder username
+                    current_bidder_username = bidder_map.get(product.id)
                 except Exception as e:
                     print(f"ERROR: Failed to calculate auction fields for product {product.id}: {e}")
                     traceback.print_exc()
