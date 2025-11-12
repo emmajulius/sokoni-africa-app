@@ -310,7 +310,8 @@ async def get_products(
                     "is_auction": product.is_auction or False,
                     "starting_price": float(product.starting_price) if product.starting_price is not None else None,
                     "bid_increment": float(product.bid_increment) if product.bid_increment is not None else None,
-                    "auction_duration_hours": product.auction_duration_hours,
+                    # Convert to int if it's a whole number (for backward compatibility with int schema)
+                    "auction_duration_hours": int(product.auction_duration_hours) if product.auction_duration_hours is not None and product.auction_duration_hours == int(product.auction_duration_hours) else product.auction_duration_hours,
                     "auction_start_time": product.auction_start_time,
                     "auction_end_time": product.auction_end_time,
                     "current_bid": float(product.current_bid) if product.current_bid is not None else None,
@@ -420,7 +421,8 @@ async def get_product(
         "is_auction": product.is_auction or False,
         "starting_price": product.starting_price,
         "bid_increment": product.bid_increment,
-        "auction_duration_hours": product.auction_duration_hours,
+        # Convert to int if it's a whole number (for backward compatibility with int schema)
+        "auction_duration_hours": int(product.auction_duration_hours) if product.auction_duration_hours is not None and product.auction_duration_hours == int(product.auction_duration_hours) else product.auction_duration_hours,
         "auction_start_time": product.auction_start_time,
         "auction_end_time": product.auction_end_time,
         "current_bid": product.current_bid,
@@ -651,7 +653,9 @@ async def create_product(
             "is_auction": is_auction,
             "starting_price": db_product.starting_price,
             "bid_increment": db_product.bid_increment,
-            "auction_duration_hours": db_product.auction_duration_hours,
+            # Convert to int if it's a whole number (for backward compatibility with int schema)
+            # Otherwise keep as float for exact minutes
+            "auction_duration_hours": int(db_product.auction_duration_hours) if db_product.auction_duration_hours is not None and db_product.auction_duration_hours == int(db_product.auction_duration_hours) else db_product.auction_duration_hours,
             "auction_start_time": db_product.auction_start_time,
             "auction_end_time": db_product.auction_end_time,
             "current_bid": db_product.current_bid,

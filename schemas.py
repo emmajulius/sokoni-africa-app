@@ -122,7 +122,7 @@ class ProductResponse(ProductBase):
     is_auction: bool = False
     starting_price: Optional[float] = None
     bid_increment: Optional[float] = None
-    auction_duration_hours: Optional[int] = None
+    auction_duration_hours: Optional[float] = None  # Changed to float to support exact minutes (e.g., 8 min = 0.133 hours)
     auction_start_time: Optional[datetime] = None
     auction_end_time: Optional[datetime] = None
     current_bid: Optional[float] = None
