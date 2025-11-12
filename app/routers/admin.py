@@ -39,7 +39,7 @@ def is_admin_user(user: User) -> bool:
 
 
 async def get_admin_user(request: Request, db: Session = Depends(get_db)) -> Union[User, RedirectResponse]:
-    """Get current admin user from session"""
+    """Get current admin user from session (can return RedirectResponse for HTML requests)"""
     token = request.cookies.get("admin_token")
     if not token:
         # Redirect to login for HTML requests
@@ -56,6 +56,37 @@ async def get_admin_user(request: Request, db: Session = Depends(get_db)) -> Uni
         # Redirect to login for HTML requests when token is expired/invalid
         if request.headers.get("accept", "").startswith("text/html"):
             return RedirectResponse(url="/admin/login?expired=1", status_code=303)
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid or expired token"
+        )
+    
+    user_id = payload.get("sub")
+    if isinstance(user_id, str):
+        user_id = int(user_id)
+    
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user or not is_admin_user(user):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Admin access required"
+        )
+    
+    return user
+
+
+async def get_admin_user_dependency(request: Request, db: Session = Depends(get_db)) -> User:
+    """Get current admin user from session (for dependency injection - always returns User or raises)"""
+    token = request.cookies.get("admin_token")
+    if not token:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Not authenticated"
+        )
+    
+    from auth import decode_access_token
+    payload = decode_access_token(token)
+    if not payload:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid or expired token"
@@ -206,7 +237,7 @@ async def admin_users(
     page: int = Query(1, ge=1),
     search: Optional[str] = Query(None),
     user_type: Optional[str] = Query(None),
-    admin_user: User = Depends(get_admin_user),
+    admin_user: User = Depends(get_admin_user_dependency),
     db: Session = Depends(get_db)
 ):
     """Admin users management page"""
@@ -250,7 +281,7 @@ async def admin_users(
 @router.post("/admin/users/{user_id}/toggle-active")
 async def toggle_user_active(
     user_id: int,
-    admin_user: User = Depends(get_admin_user),
+    admin_user: User = Depends(get_admin_user_dependency),
     db: Session = Depends(get_db)
 ):
     """Toggle user active status"""
@@ -268,7 +299,7 @@ async def toggle_user_active(
 async def edit_user_form(
     request: Request,
     user_id: int,
-    admin_user: User = Depends(get_admin_user),
+    admin_user: User = Depends(get_admin_user_dependency),
     db: Session = Depends(get_db)
 ):
     """Edit user form"""
@@ -300,7 +331,7 @@ async def update_user(
     location_address: Optional[str] = Form(None),
     latitude: Optional[float] = Form(None),
     longitude: Optional[float] = Form(None),
-    admin_user: User = Depends(get_admin_user),
+    admin_user: User = Depends(get_admin_user_dependency),
     db: Session = Depends(get_db)
 ):
     """Update user information"""
@@ -397,7 +428,7 @@ async def update_user(
 @router.post("/admin/users/{user_id}/delete")
 async def delete_user(
     user_id: int,
-    admin_user: User = Depends(get_admin_user),
+    admin_user: User = Depends(get_admin_user_dependency),
     db: Session = Depends(get_db)
 ):
     """Delete user"""
@@ -421,7 +452,7 @@ async def admin_products(
     page: int = Query(1, ge=1),
     search: Optional[str] = Query(None),
     category: Optional[str] = Query(None),
-    admin_user: User = Depends(get_admin_user),
+    admin_user: User = Depends(get_admin_user_dependency),
     db: Session = Depends(get_db)
 ):
     """Admin products management page"""
@@ -525,7 +556,7 @@ def _delete_product_files(product: Product) -> None:
 async def product_delete_info(
     request: Request,
     product_id: int,
-    admin_user: User = Depends(get_admin_user),
+    admin_user: User = Depends(get_admin_user_dependency),
     db: Session = Depends(get_db)
 ):
     """Show product deletion information including related orders"""
@@ -577,7 +608,7 @@ async def delete_product(
     product_id: int,
     request: Request,
     force: Optional[str] = Form(None),
-    admin_user: User = Depends(get_admin_user),
+    admin_user: User = Depends(get_admin_user_dependency),
     db: Session = Depends(get_db)
 ):
     """Delete product and all related records"""
@@ -688,7 +719,7 @@ async def admin_orders(
     request: Request,
     page: int = Query(1, ge=1),
     status_filter: Optional[str] = Query(None),
-    admin_user: User = Depends(get_admin_user),
+    admin_user: User = Depends(get_admin_user_dependency),
     db: Session = Depends(get_db)
 ):
     """Admin orders management page"""
@@ -764,7 +795,7 @@ async def admin_orders(
 async def view_order_details(
     request: Request,
     order_id: int,
-    admin_user: User = Depends(get_admin_user),
+    admin_user: User = Depends(get_admin_user_dependency),
     db: Session = Depends(get_db)
 ):
     """View order details"""
@@ -800,7 +831,7 @@ async def view_order_details(
 async def update_order_status(
     order_id: int,
     new_status: str = Form(...),
-    admin_user: User = Depends(get_admin_user),
+    admin_user: User = Depends(get_admin_user_dependency),
     db: Session = Depends(get_db)
 ):
     """Update order status"""
@@ -821,7 +852,7 @@ async def update_order_status(
 @router.get("/admin/fees", response_class=HTMLResponse)
 async def admin_fees_dashboard(
     request: Request,
-    admin_user: User = Depends(get_admin_user),
+    admin_user: User = Depends(get_admin_user_dependency),
     db: Session = Depends(get_db)
 ):
     """Admin fees dashboard showing collected fees"""
@@ -890,7 +921,7 @@ async def admin_fees_dashboard(
 @router.get("/admin/fees/cashout", response_class=HTMLResponse)
 async def admin_cashout_form(
     request: Request,
-    admin_user: User = Depends(get_admin_user),
+    admin_user: User = Depends(get_admin_user_dependency),
     db: Session = Depends(get_db)
 ):
     """Admin cashout form"""
@@ -929,7 +960,7 @@ async def submit_admin_cashout(
     bank_branch: Optional[str] = Form(None),
     bank_swift_code: Optional[str] = Form(None),
     notes: Optional[str] = Form(None),
-    admin_user: User = Depends(get_admin_user),
+    admin_user: User = Depends(get_admin_user_dependency),
     db: Session = Depends(get_db)
 ):
     """Submit admin cashout request"""
@@ -1167,7 +1198,7 @@ async def admin_cashout_history(
     request: Request,
     page: int = Query(1, ge=1),
     status_filter: Optional[str] = Query(None),
-    admin_user: User = Depends(get_admin_user),
+    admin_user: User = Depends(get_admin_user_dependency),
     db: Session = Depends(get_db)
 ):
     """Admin cashout history"""
@@ -1210,7 +1241,7 @@ async def admin_cashout_history(
 @router.get("/admin/fees/cashout/{cashout_id}/details")
 async def get_cashout_details(
     cashout_id: int,
-    admin_user: User = Depends(get_admin_user),
+    admin_user: User = Depends(get_admin_user_dependency),
     db: Session = Depends(get_db)
 ):
     """Get cashout details as JSON"""
@@ -1252,7 +1283,7 @@ async def update_cashout_status(
     new_status: str = Form(...),
     currency: Optional[str] = Form(None),
     notes: Optional[str] = Form(None),
-    admin_user: User = Depends(get_admin_user),
+    admin_user: User = Depends(get_admin_user_dependency),
     db: Session = Depends(get_db)
 ):
     """Update cashout status"""
@@ -1317,7 +1348,7 @@ async def update_cashout_status(
 @router.post("/admin/fees/cashout/{cashout_id}/delete")
 async def delete_cashout(
     cashout_id: int,
-    admin_user: User = Depends(get_admin_user),
+    admin_user: User = Depends(get_admin_user_dependency),
     db: Session = Depends(get_db)
 ):
     """Delete a cashout transaction"""
