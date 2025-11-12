@@ -45,3 +45,11 @@ wheels/
 .DS_Store
 Thumbs.db
 
+# Uploaded files and user-generated content (should not be in git)
+uploads/
+assets/
+
+# Migration scripts (keep the scripts, but ignore generated files)
+*.pyc
+__pycache__/
+

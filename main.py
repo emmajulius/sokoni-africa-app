@@ -10,9 +10,16 @@ from models import Base
 from config import settings
 from app.routers import auth, users, products, categories, stories, cart, orders, uploads, messages, reports, saved_products, kyc, notifications, wallet, auctions, admin
 from pathlib import Path
+import os
 
-# Create database tables
-Base.metadata.create_all(bind=engine)
+# Create database tables (only if not in production or if explicitly enabled)
+# In production (Render), tables should be managed via migrations, not auto-creation
+if os.getenv("ENVIRONMENT", "development").lower() != "production" or os.getenv("AUTO_CREATE_TABLES", "false").lower() == "true":
+    try:
+        Base.metadata.create_all(bind=engine)
+    except Exception as e:
+        print(f"Warning: Could not create database tables automatically: {e}")
+        print("If this is production, ensure tables are created via migrations.")
 
 app = FastAPI(
     title="Sokoni Africa API",
