@@ -25,7 +25,7 @@ SECURITY_HEADERS = {
     "X-Frame-Options": "DENY",
     "X-XSS-Protection": "1; mode=block",
     "Strict-Transport-Security": "max-age=31536000; includeSubDomains",
-    "Content-Security-Policy": "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline';",
+    "Content-Security-Policy": "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: *;",
     "Referrer-Policy": "strict-origin-when-cross-origin",
     "Permissions-Policy": "geolocation=(), microphone=(), camera=()",
 }
@@ -55,9 +55,26 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
         response = await call_next(request)
         
-        # Add security headers
-        for header, value in SECURITY_HEADERS.items():
-            response.headers[header] = value
+        # Skip security headers for static files and images (they need CORS and less restrictive headers)
+        path = request.url.path
+        is_static_or_image = (
+            path.startswith("/api/uploads/") or 
+            path.startswith("/static/") or
+            path.startswith("/uploads/")
+        )
+        
+        if not is_static_or_image:
+            # Add security headers for non-static content
+            for header, value in SECURITY_HEADERS.items():
+                response.headers[header] = value
+        
+        # Always add CORS headers for images (needed for admin panel)
+        if is_static_or_image:
+            response.headers["Access-Control-Allow-Origin"] = "*"
+            response.headers["Access-Control-Allow-Methods"] = "GET, OPTIONS"
+            response.headers["Access-Control-Allow-Headers"] = "*"
+            # Less restrictive CSP for images
+            response.headers["Content-Security-Policy"] = "default-src 'self'; img-src 'self' data: blob: * http: https:;"
         
         # Remove server header to hide server information (use del instead of pop)
         if "server" in response.headers:

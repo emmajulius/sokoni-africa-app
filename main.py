@@ -100,18 +100,40 @@ async def add_private_network_cors_headers(request: Request, call_next):
     response = await call_next(request)
     response.headers["Access-Control-Allow-Private-Network"] = "true"
     
+    path = request.url.path
+    
+    # Add CORS and cache headers for images and static files (critical for admin panel)
+    is_image_or_static = (
+        "/uploads/" in path or 
+        "/static/" in path or
+        path.startswith("/api/uploads/")
+    )
+    
+    if is_image_or_static:
+        # Essential CORS headers for images to load in admin panel
+        response.headers["Access-Control-Allow-Origin"] = "*"
+        response.headers["Access-Control-Allow-Methods"] = "GET, OPTIONS, HEAD"
+        response.headers["Access-Control-Allow-Headers"] = "*"
+        response.headers["Access-Control-Expose-Headers"] = "*"
+        # Cache images for better performance
+        response.headers["Cache-Control"] = "public, max-age=3600, stale-while-revalidate=86400"
+        # Ensure proper content type
+        if path.endswith(('.jpg', '.jpeg', '.png', '.gif', '.webp')):
+            if 'Content-Type' not in response.headers:
+                if path.endswith('.png'):
+                    response.headers["Content-Type"] = "image/png"
+                elif path.endswith(('.jpg', '.jpeg')):
+                    response.headers["Content-Type"] = "image/jpeg"
+                elif path.endswith('.gif'):
+                    response.headers["Content-Type"] = "image/gif"
+                elif path.endswith('.webp'):
+                    response.headers["Content-Type"] = "image/webp"
+    
     # Add cache headers for GET requests to API endpoints (short cache for dynamic data)
-    if request.method == "GET" and request.url.path.startswith("/api/"):
+    elif request.method == "GET" and path.startswith("/api/"):
         # Don't cache auth endpoints or user-specific data
-        if not any(path in request.url.path for path in ["/auth", "/users/me", "/cart", "/orders", "/wallet"]):
-            # Longer cache for product images (including admin panel)
-            if "/uploads/" in request.url.path or "/static/" in request.url.path:
-                response.headers["Cache-Control"] = "public, max-age=3600, stale-while-revalidate=86400"  # 1 hour cache for images
-                # Add CORS headers for images to work in admin panel
-                response.headers["Access-Control-Allow-Origin"] = "*"
-                response.headers["Access-Control-Allow-Methods"] = "GET, OPTIONS"
-            else:
-                response.headers["Cache-Control"] = "public, max-age=60, stale-while-revalidate=300"
+        if not any(p in path for p in ["/auth", "/users/me", "/cart", "/orders", "/wallet"]):
+            response.headers["Cache-Control"] = "public, max-age=60, stale-while-revalidate=300"
     
     return response
 

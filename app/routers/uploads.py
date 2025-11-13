@@ -201,7 +201,7 @@ async def upload_multiple_images(
 
 @router.get("/products/{filename}")
 async def get_image(filename: str):
-    """Serve uploaded images with caching headers"""
+    """Serve uploaded images with caching headers and CORS for admin panel"""
     file_path = PRODUCTS_DIR / filename
     
     if not file_path.exists():
@@ -210,12 +210,15 @@ async def get_image(filename: str):
             detail="Image not found"
         )
     
-    # Return with caching headers (1 year cache, but allow revalidation)
+    # Return with caching headers and CORS (critical for admin panel)
     return FileResponse(
         file_path,
         headers={
             "Cache-Control": "public, max-age=31536000, immutable",
             "ETag": f'"{file_path.stat().st_mtime}"',
+            "Access-Control-Allow-Origin": "*",
+            "Access-Control-Allow-Methods": "GET, OPTIONS, HEAD",
+            "Access-Control-Allow-Headers": "*",
         },
         media_type="image/jpeg"
     )
@@ -244,6 +247,9 @@ async def get_thumbnail(filename: str):
         headers={
             "Cache-Control": "public, max-age=31536000, immutable",
             "ETag": f'"{file_path.stat().st_mtime}"',
+            "Access-Control-Allow-Origin": "*",
+            "Access-Control-Allow-Methods": "GET, OPTIONS, HEAD",
+            "Access-Control-Allow-Headers": "*",
         },
         media_type="image/jpeg"
     )
