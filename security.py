@@ -143,28 +143,43 @@ class SecurityLoggingMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
         start_time = time.time()
         
-        # Log request
-        client_ip = request.client.host if request.client else "unknown"
-        logger.info(f"Request: {request.method} {request.url.path} from {client_ip}")
+        # Log request (with error handling)
+        try:
+            client_ip = request.client.host if request.client else "unknown"
+            logger.info(f"Request: {request.method} {request.url.path} from {client_ip}")
+        except Exception:
+            pass
         
         try:
             response = await call_next(request)
         except HTTPException as e:
             # Log security-related errors
-            if e.status_code in [401, 403, 429]:
-                logger.warning(f"Security event: {e.status_code} - {e.detail} from {client_ip}")
+            try:
+                client_ip = request.client.host if request.client else "unknown"
+                if e.status_code in [401, 403, 429]:
+                    logger.warning(f"Security event: {e.status_code} - {e.detail} from {client_ip}")
+            except Exception:
+                pass
             raise
         except Exception as e:
-            logger.error(f"Error processing request: {e} from {client_ip}")
+            try:
+                client_ip = request.client.host if request.client else "unknown"
+                logger.error(f"Error processing request: {e} from {client_ip}")
+            except Exception:
+                pass
             raise
         
-        # Log response time
-        process_time = time.time() - start_time
-        response.headers["X-Process-Time"] = str(process_time)
-        
-        # Log slow requests (potential DoS)
-        if process_time > 5.0:
-            logger.warning(f"Slow request: {request.url.path} took {process_time:.2f}s")
+        # Log response time (with error handling)
+        try:
+            process_time = time.time() - start_time
+            if hasattr(response, 'headers'):
+                response.headers["X-Process-Time"] = str(process_time)
+            
+            # Log slow requests (potential DoS)
+            if process_time > 5.0:
+                logger.warning(f"Slow request: {request.url.path} took {process_time:.2f}s")
+        except Exception:
+            pass
         
         return response
 
@@ -250,8 +265,14 @@ def validate_password_strength(password: str):
 
 def sanitize_input(text: str, max_length: int = 1000) -> str:
     """Sanitize user input to prevent XSS and injection attacks"""
-    if not isinstance(text, str):
+    if text is None:
         return ""
+    
+    if not isinstance(text, str):
+        try:
+            text = str(text)
+        except Exception:
+            return ""
     
     # Remove null bytes
     text = text.replace("\x00", "")

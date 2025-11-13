@@ -157,12 +157,20 @@ async def register(user_data: UserCreate, db: Session = Depends(get_db)):
     
     # Validate password strength
     if user_data.password:
-        is_valid, error_message = validate_password_strength(user_data.password)
-        if not is_valid:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=error_message
-            )
+        try:
+            is_valid, error_message = validate_password_strength(user_data.password)
+            if not is_valid:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=error_message
+                )
+        except Exception as e:
+            # If validation fails, use basic validation
+            if len(user_data.password) < 8:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Password must be at least 8 characters long"
+                )
         
         # Validate password length (bcrypt has 72-byte limit)
         password_bytes = user_data.password.encode('utf-8')
@@ -172,9 +180,14 @@ async def register(user_data: UserCreate, db: Session = Depends(get_db)):
                 detail="Password is too long. Maximum length is 72 characters."
             )
     
-    # Sanitize user input
-    username = sanitize_input(user_data.username, max_length=50)
-    full_name = sanitize_input(user_data.full_name, max_length=200) if user_data.full_name else None
+    # Sanitize user input (with error handling)
+    try:
+        username = sanitize_input(user_data.username, max_length=50) if user_data.username else None
+        full_name = sanitize_input(user_data.full_name, max_length=200) if user_data.full_name else None
+    except Exception as e:
+        print(f"[Register] Warning: Input sanitization failed: {e}")
+        username = user_data.username
+        full_name = user_data.full_name
     
     # Create new user
     hashed_password = None
@@ -291,17 +304,26 @@ async def login(credentials: UserLogin, db: Session = Depends(get_db)):
         
         if credentials.username:
             print(f"[Login] Attempting login with username: {credentials.username}")
-            identifier_value = sanitize_input(credentials.username, max_length=50)
+            try:
+                identifier_value = sanitize_input(credentials.username, max_length=50)
+            except Exception:
+                identifier_value = credentials.username
             user = db.query(User).filter(User.username == identifier_value).first()
             identifier_used = "username"
         elif credentials.phone:
             print(f"[Login] Attempting login with phone: {credentials.phone}")
-            identifier_value = sanitize_input(credentials.phone, max_length=20)
+            try:
+                identifier_value = sanitize_input(credentials.phone, max_length=20)
+            except Exception:
+                identifier_value = credentials.phone
             user = db.query(User).filter(User.phone == identifier_value).first()
             identifier_used = "phone"
         elif credentials.email:
             print(f"[Login] Attempting login with email: {credentials.email}")
-            identifier_value = sanitize_input(credentials.email, max_length=255)
+            try:
+                identifier_value = sanitize_input(credentials.email, max_length=255)
+            except Exception:
+                identifier_value = credentials.email
             user = db.query(User).filter(User.email == identifier_value).first()
             identifier_used = "email"
         else:
@@ -313,17 +335,24 @@ async def login(credentials: UserLogin, db: Session = Depends(get_db)):
         
         # Check account lockout before attempting login
         lockout_key = f"{identifier_used}:{identifier_value}"
-        is_locked, lockout_message = check_account_lockout(lockout_key)
-        if is_locked:
-            raise HTTPException(
-                status_code=status.HTTP_423_LOCKED,
-                detail=lockout_message
-            )
+        try:
+            is_locked, lockout_message = check_account_lockout(lockout_key)
+            if is_locked:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,  # Use 403 instead of 423
+                    detail=lockout_message or "Account temporarily locked due to too many failed login attempts"
+                )
+        except Exception as e:
+            # If lockout check fails, log but continue (don't block login)
+            print(f"[Login] Warning: Account lockout check failed: {e}")
         
         if not user:
             print(f"[Login] User not found with {identifier_used}: {identifier_value}")
             # Record failed attempt even if user doesn't exist (prevents user enumeration)
-            record_failed_login_attempt(lockout_key)
+            try:
+                record_failed_login_attempt(lockout_key)
+            except Exception as e:
+                print(f"[Login] Warning: Failed to record login attempt: {e}")
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Incorrect username/email/phone or password"
@@ -331,7 +360,10 @@ async def login(credentials: UserLogin, db: Session = Depends(get_db)):
         
         if not user.hashed_password:
             print(f"[Login] User {user.username} (ID: {user.id}) has no password hash (may be Google-only account)")
-            record_failed_login_attempt(lockout_key)
+            try:
+                record_failed_login_attempt(lockout_key)
+            except Exception as e:
+                print(f"[Login] Warning: Failed to record login attempt: {e}")
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="This account doesn't have a password. Please use Google Sign-In or reset your password."
@@ -340,12 +372,16 @@ async def login(credentials: UserLogin, db: Session = Depends(get_db)):
         print(f"[Login] User found: {user.username} (ID: {user.id}), verifying password...")
         if not verify_password(credentials.password, user.hashed_password):
             # Record failed login attempt
-            is_locked = record_failed_login_attempt(lockout_key)
-            if is_locked:
-                raise HTTPException(
-                    status_code=status.HTTP_423_LOCKED,
-                    detail="Account locked due to too many failed login attempts. Please try again later."
-                )
+            try:
+                is_locked = record_failed_login_attempt(lockout_key)
+                if is_locked:
+                    raise HTTPException(
+                        status_code=status.HTTP_403_FORBIDDEN,  # Use 403 instead of 423
+                        detail="Account locked due to too many failed login attempts. Please try again later."
+                    )
+            except Exception as e:
+                # If recording fails, log but continue
+                print(f"[Login] Warning: Failed to record login attempt: {e}")
             print(f"[Login] Password verification failed for user: {user.username}")
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
@@ -353,7 +389,10 @@ async def login(credentials: UserLogin, db: Session = Depends(get_db)):
             )
         
         # Reset failed login attempts on successful login
-        reset_failed_login_attempts(lockout_key)
+        try:
+            reset_failed_login_attempts(lockout_key)
+        except Exception as e:
+            print(f"[Login] Warning: Failed to reset login attempts: {e}")
         print(f"[Login] Password verified successfully for user: {user.username}")
     
     if not user:
