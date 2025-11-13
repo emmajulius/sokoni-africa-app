@@ -9,8 +9,22 @@ from database import engine, get_db
 from models import Base
 from config import settings
 from app.routers import auth, users, products, categories, stories, cart, orders, uploads, messages, reports, saved_products, kyc, notifications, wallet, auctions, admin
+from security import (
+    SecurityHeadersMiddleware,
+    RateLimitMiddleware,
+    RequestSizeLimitMiddleware,
+    SecurityLoggingMiddleware
+)
 from pathlib import Path
 import os
+import logging
+
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO if settings.ENVIRONMENT == "production" else logging.DEBUG,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger(__name__)
 
 # Create database tables (only if not in production or if explicitly enabled)
 # In production (Render), tables should be managed via migrations, not auto-creation
@@ -24,14 +38,24 @@ if os.getenv("ENVIRONMENT", "development").lower() != "production" or os.getenv(
 app = FastAPI(
     title="Sokoni Africa API",
     description="RESTful API for Sokoni Africa E-commerce Platform",
-    version="1.0.0"
+    version="1.0.0",
+    docs_url="/docs" if settings.DEBUG else None,  # Disable docs in production
+    redoc_url="/redoc" if settings.DEBUG else None,  # Disable redoc in production
+    openapi_url="/openapi.json" if settings.DEBUG else None,  # Disable OpenAPI schema in production
 )
 
-# CORS Middleware
+# CORS Middleware - Secure configuration
 print(f"[CORS] ALLOWED_ORIGINS setting: {settings.ALLOWED_ORIGINS}")
 print(f"[CORS] ALLOWED_ORIGIN_REGEX setting: {settings.ALLOWED_ORIGIN_REGEX}")
 allowed_origins = settings.cors_origins
 allow_origin_regex = settings.cors_origin_regex
+
+# In production, restrict CORS to specific origins
+if settings.ENVIRONMENT == "production" and "*" in allowed_origins:
+    logger.warning("CORS is set to allow all origins in production! This is a security risk.")
+    # In production, you should set specific origins in .env
+    # For now, we'll keep it but log a warning
+
 print(f"[CORS] Resolved allow_origins: {allowed_origins}")
 print(f"[CORS] Resolved allow_origin_regex: {allow_origin_regex}")
 
@@ -40,9 +64,24 @@ app.add_middleware(
     allow_origins=allowed_origins,
     allow_origin_regex=allow_origin_regex,
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],  # Explicit methods
+    allow_headers=["Content-Type", "Authorization", "X-Requested-With"],  # Explicit headers
+    expose_headers=["X-Process-Time"],  # Only expose necessary headers
+    max_age=3600,  # Cache preflight requests for 1 hour
 )
+
+# Add security middleware (order matters - add in reverse order of execution)
+# Security logging first (outermost)
+app.add_middleware(SecurityLoggingMiddleware)
+
+# Request size limiting
+app.add_middleware(RequestSizeLimitMiddleware)
+
+# Rate limiting
+app.add_middleware(RateLimitMiddleware)
+
+# Security headers (innermost, executes last)
+app.add_middleware(SecurityHeadersMiddleware)
 
 # Add GZip compression for API responses (reduces data transfer)
 app.add_middleware(GZipMiddleware, minimum_size=1000)

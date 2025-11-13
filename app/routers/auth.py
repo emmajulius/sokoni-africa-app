@@ -13,6 +13,13 @@ from models import UserType
 from sms_service import SMSService
 from email_service import EmailService
 from pydantic import BaseModel, EmailStr
+from security import (
+    validate_password_strength,
+    check_account_lockout,
+    record_failed_login_attempt,
+    reset_failed_login_attempts,
+    sanitize_input
+)
 import requests
 import json
 from typing import Optional, Dict, Any
@@ -148,19 +155,26 @@ async def register(user_data: UserCreate, db: Session = Depends(get_db)):
             detail="Phone number already registered"
         )
     
-    # Validate password length (bcrypt has 72-byte limit)
+    # Validate password strength
     if user_data.password:
+        is_valid, error_message = validate_password_strength(user_data.password)
+        if not is_valid:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=error_message
+            )
+        
+        # Validate password length (bcrypt has 72-byte limit)
         password_bytes = user_data.password.encode('utf-8')
         if len(password_bytes) > 72:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Password is too long. Maximum length is 72 characters."
             )
-        if len(user_data.password) < 6:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Password must be at least 6 characters long"
-            )
+    
+    # Sanitize user input
+    username = sanitize_input(user_data.username, max_length=50)
+    full_name = sanitize_input(user_data.full_name, max_length=200) if user_data.full_name else None
     
     # Create new user
     hashed_password = None
@@ -168,8 +182,8 @@ async def register(user_data: UserCreate, db: Session = Depends(get_db)):
         hashed_password = get_password_hash(user_data.password)
     
     db_user = User(
-        username=user_data.username,
-        full_name=user_data.full_name,
+        username=username,
+        full_name=full_name,
         email=user_data.email,
         phone=user_data.phone,
         hashed_password=hashed_password,
@@ -273,18 +287,22 @@ async def login(credentials: UserLogin, db: Session = Depends(get_db)):
         # Try username first, then phone, then email
         user = None
         identifier_used = None
+        identifier_value = None
         
         if credentials.username:
             print(f"[Login] Attempting login with username: {credentials.username}")
-            user = db.query(User).filter(User.username == credentials.username).first()
+            identifier_value = sanitize_input(credentials.username, max_length=50)
+            user = db.query(User).filter(User.username == identifier_value).first()
             identifier_used = "username"
         elif credentials.phone:
             print(f"[Login] Attempting login with phone: {credentials.phone}")
-            user = db.query(User).filter(User.phone == credentials.phone).first()
+            identifier_value = sanitize_input(credentials.phone, max_length=20)
+            user = db.query(User).filter(User.phone == identifier_value).first()
             identifier_used = "phone"
         elif credentials.email:
             print(f"[Login] Attempting login with email: {credentials.email}")
-            user = db.query(User).filter(User.email == credentials.email).first()
+            identifier_value = sanitize_input(credentials.email, max_length=255)
+            user = db.query(User).filter(User.email == identifier_value).first()
             identifier_used = "email"
         else:
             print(f"[Login] No identifier provided (username, phone, or email)")
@@ -293,8 +311,19 @@ async def login(credentials: UserLogin, db: Session = Depends(get_db)):
                 detail="Username, email, or phone number is required"
             )
         
+        # Check account lockout before attempting login
+        lockout_key = f"{identifier_used}:{identifier_value}"
+        is_locked, lockout_message = check_account_lockout(lockout_key)
+        if is_locked:
+            raise HTTPException(
+                status_code=status.HTTP_423_LOCKED,
+                detail=lockout_message
+            )
+        
         if not user:
-            print(f"[Login] User not found with {identifier_used}: {credentials.username or credentials.phone or credentials.email}")
+            print(f"[Login] User not found with {identifier_used}: {identifier_value}")
+            # Record failed attempt even if user doesn't exist (prevents user enumeration)
+            record_failed_login_attempt(lockout_key)
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Incorrect username/email/phone or password"
@@ -302,6 +331,7 @@ async def login(credentials: UserLogin, db: Session = Depends(get_db)):
         
         if not user.hashed_password:
             print(f"[Login] User {user.username} (ID: {user.id}) has no password hash (may be Google-only account)")
+            record_failed_login_attempt(lockout_key)
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="This account doesn't have a password. Please use Google Sign-In or reset your password."
@@ -309,12 +339,21 @@ async def login(credentials: UserLogin, db: Session = Depends(get_db)):
         
         print(f"[Login] User found: {user.username} (ID: {user.id}), verifying password...")
         if not verify_password(credentials.password, user.hashed_password):
+            # Record failed login attempt
+            is_locked = record_failed_login_attempt(lockout_key)
+            if is_locked:
+                raise HTTPException(
+                    status_code=status.HTTP_423_LOCKED,
+                    detail="Account locked due to too many failed login attempts. Please try again later."
+                )
             print(f"[Login] Password verification failed for user: {user.username}")
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Incorrect username/email/phone or password"
             )
         
+        # Reset failed login attempts on successful login
+        reset_failed_login_attempts(lockout_key)
         print(f"[Login] Password verified successfully for user: {user.username}")
     
     if not user:
