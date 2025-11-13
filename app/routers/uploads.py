@@ -320,6 +320,9 @@ async def get_story_media(filename: str):
         headers={
             "Cache-Control": "public, max-age=31536000, immutable",
             "ETag": f'"{file_path.stat().st_mtime}"',
+            "Access-Control-Allow-Origin": "*",
+            "Access-Control-Allow-Methods": "GET, OPTIONS, HEAD",
+            "Access-Control-Allow-Headers": "*",
         }
     )
 
