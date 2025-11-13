@@ -455,11 +455,19 @@ async def get_product(
                 else:
                     auction_end = product.auction_end_time
                 
-                # Only update status if auction ended more than 1 hour ago (to avoid frequent updates)
-                if auction_end < now - timedelta(hours=1) and product.auction_status not in ("ended", "completed"):
-                    from app.routers.auctions import _check_and_update_auction_status
-                    _check_and_update_auction_status(product, db)
-                    db.refresh(product)
+                # Check if auction has ended (more aggressive check)
+                if now >= auction_end:
+                    # Auction has ended - update status immediately
+                    if product.auction_status not in ("ended", "completed"):
+                        from app.routers.auctions import _check_and_update_auction_status
+                        _check_and_update_auction_status(product, db)
+                        db.refresh(product)
+                elif auction_end < now - timedelta(hours=1):
+                    # Ended more than 1 hour ago - definitely update
+                    if product.auction_status not in ("ended", "completed"):
+                        from app.routers.auctions import _check_and_update_auction_status
+                        _check_and_update_auction_status(product, db)
+                        db.refresh(product)
                 
                 remaining = (auction_end - now).total_seconds()
                 time_remaining_seconds = max(0, int(remaining))
