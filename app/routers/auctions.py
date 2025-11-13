@@ -99,8 +99,8 @@ def _check_and_update_auction_status(product: Product, db: Session) -> str:
     """Check auction status and update if needed. Returns current status."""
     now = datetime.now(timezone.utc)
     
-    # Cleanup expired auctions (24 hours after end) - do this periodically
-    _cleanup_expired_auctions(db, force=False)
+    # Skip cleanup on every status check - it's too slow
+    # Cleanup should be done via background task or cron job
     
     # Ensure auction_end_time is timezone-aware
     if product.auction_end_time:
