@@ -104,9 +104,12 @@ async def add_private_network_cors_headers(request: Request, call_next):
     if request.method == "GET" and request.url.path.startswith("/api/"):
         # Don't cache auth endpoints or user-specific data
         if not any(path in request.url.path for path in ["/auth", "/users/me", "/cart", "/orders", "/wallet"]):
-            # Longer cache for product images
+            # Longer cache for product images (including admin panel)
             if "/uploads/" in request.url.path or "/static/" in request.url.path:
                 response.headers["Cache-Control"] = "public, max-age=3600, stale-while-revalidate=86400"  # 1 hour cache for images
+                # Add CORS headers for images to work in admin panel
+                response.headers["Access-Control-Allow-Origin"] = "*"
+                response.headers["Access-Control-Allow-Methods"] = "GET, OPTIONS"
             else:
                 response.headers["Cache-Control"] = "public, max-age=60, stale-while-revalidate=300"
     
