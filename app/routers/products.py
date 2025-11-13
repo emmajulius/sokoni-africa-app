@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.orm import Session
-from sqlalchemy import or_, desc, func
+from sqlalchemy import or_, and_, desc, func
 from typing import List, Optional
 from pathlib import Path
 from urllib.parse import urlparse
