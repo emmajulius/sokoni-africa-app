@@ -940,7 +940,7 @@ async def delete_product(
     current_user: User = Depends(require_user_type(UserType.SUPPLIER, UserType.RETAILER)),
     db: Session = Depends(get_db)
 ):
-    """Delete product (only owner can delete)"""
+    """Delete product (only owner can delete) - handles both normal and auction products"""
     product = db.query(Product).filter(Product.id == product_id).first()
     if not product:
         raise HTTPException(
@@ -955,17 +955,57 @@ async def delete_product(
             detail="You don't have permission to delete this product"
         )
     
+    # For auction products, delete all bids first (cascade should handle this, but explicit deletion is safer)
+    if product.is_auction:
+        from models import Bid
+        try:
+            db.query(Bid).filter(Bid.product_id == product.id).delete()
+            print(f"Deleted all bids for auction product {product_id}")
+        except Exception as e:
+            print(f"Warning: Error deleting bids for auction product {product_id}: {e}")
+            # Continue with deletion even if bid deletion fails
+    
+    # Delete order items containing this product (must be done before deleting product due to foreign key)
+    from models import OrderItem
+    try:
+        order_items = db.query(OrderItem).filter(OrderItem.product_id == product.id).all()
+        if order_items:
+            print(f"Found {len(order_items)} order items for product {product_id}, deleting them...")
+            db.query(OrderItem).filter(OrderItem.product_id == product.id).delete()
+            print(f"Deleted {len(order_items)} order items for product {product_id}")
+    except Exception as e:
+        print(f"Warning: Error deleting order items for product {product_id}: {e}")
+        # Continue with deletion even if order item deletion fails
+    
     # Delete related engagement records
     db.query(ProductLike).filter(ProductLike.product_id == product.id).delete()
     db.query(ProductComment).filter(ProductComment.product_id == product.id).delete()
     db.query(ProductRating).filter(ProductRating.product_id == product.id).delete()
     
+    # Delete cart items containing this product
+    from models import CartItem
+    db.query(CartItem).filter(CartItem.product_id == product.id).delete()
+    
+    # Delete saved products
+    from models import SavedProduct
+    db.query(SavedProduct).filter(SavedProduct.product_id == product.id).delete()
+    
+    # Delete product reports
+    from models import ProductReport
+    db.query(ProductReport).filter(ProductReport.product_id == product.id).delete()
+    
+    # Delete notifications related to this product
+    from models import Notification
+    db.query(Notification).filter(Notification.related_product_id == product.id).delete()
+    
     # Attempt to remove associated files
     _delete_product_files(product)
     
+    # Delete the product itself
     db.delete(product)
     db.commit()
     
+    print(f"Successfully deleted product {product_id} (auction: {product.is_auction})")
     return None
 
 
