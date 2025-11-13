@@ -40,70 +40,110 @@ def is_admin_user(user: User) -> bool:
 
 async def get_admin_user(request: Request, db: Session = Depends(get_db)) -> Union[User, RedirectResponse]:
     """Get current admin user from session (can return RedirectResponse for HTML requests)"""
-    token = request.cookies.get("admin_token")
-    if not token:
-        # Redirect to login for HTML requests
+    try:
+        token = request.cookies.get("admin_token")
+        if not token:
+            # Redirect to login for HTML requests
+            if request.headers.get("accept", "").startswith("text/html"):
+                return RedirectResponse(url="/admin/login?expired=1", status_code=303)
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Not authenticated"
+            )
+        
+        from auth import decode_access_token
+        payload = decode_access_token(token)
+        if not payload:
+            # Redirect to login for HTML requests when token is expired/invalid
+            if request.headers.get("accept", "").startswith("text/html"):
+                return RedirectResponse(url="/admin/login?expired=1", status_code=303)
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid or expired token"
+            )
+        
+        user_id = payload.get("sub")
+        if isinstance(user_id, str):
+            try:
+                user_id = int(user_id)
+            except (ValueError, TypeError):
+                if request.headers.get("accept", "").startswith("text/html"):
+                    return RedirectResponse(url="/admin/login?expired=1", status_code=303)
+                raise HTTPException(
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                    detail="Invalid token format"
+                )
+        
+        user = db.query(User).filter(User.id == user_id).first()
+        if not user or not is_admin_user(user):
+            if request.headers.get("accept", "").startswith("text/html"):
+                return RedirectResponse(url="/admin/login?error=Access denied", status_code=303)
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Admin access required"
+            )
+        
+        return user
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"[Admin] Error in get_admin_user: {e}")
+        import traceback
+        traceback.print_exc()
         if request.headers.get("accept", "").startswith("text/html"):
-            return RedirectResponse(url="/admin/login?expired=1", status_code=303)
+            return RedirectResponse(url="/admin/login?error=Authentication error", status_code=303)
         raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Not authenticated"
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Internal server error"
         )
-    
-    from auth import decode_access_token
-    payload = decode_access_token(token)
-    if not payload:
-        # Redirect to login for HTML requests when token is expired/invalid
-        if request.headers.get("accept", "").startswith("text/html"):
-            return RedirectResponse(url="/admin/login?expired=1", status_code=303)
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid or expired token"
-        )
-    
-    user_id = payload.get("sub")
-    if isinstance(user_id, str):
-        user_id = int(user_id)
-    
-    user = db.query(User).filter(User.id == user_id).first()
-    if not user or not is_admin_user(user):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Admin access required"
-        )
-    
-    return user
 
 
 async def get_admin_user_dependency(request: Request, db: Session = Depends(get_db)) -> User:
     """Get current admin user from session (for dependency injection - always returns User or raises)"""
-    token = request.cookies.get("admin_token")
-    if not token:
+    try:
+        token = request.cookies.get("admin_token")
+        if not token:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Not authenticated"
+            )
+        
+        from auth import decode_access_token
+        payload = decode_access_token(token)
+        if not payload:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid or expired token"
+            )
+        
+        user_id = payload.get("sub")
+        if isinstance(user_id, str):
+            try:
+                user_id = int(user_id)
+            except (ValueError, TypeError):
+                raise HTTPException(
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                    detail="Invalid token format"
+                )
+        
+        user = db.query(User).filter(User.id == user_id).first()
+        if not user or not is_admin_user(user):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Admin access required"
+            )
+        
+        return user
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"[Admin] Error in get_admin_user_dependency: {e}")
+        import traceback
+        traceback.print_exc()
         raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Not authenticated"
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Internal server error"
         )
-    
-    from auth import decode_access_token
-    payload = decode_access_token(token)
-    if not payload:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid or expired token"
-        )
-    
-    user_id = payload.get("sub")
-    if isinstance(user_id, str):
-        user_id = int(user_id)
-    
-    user = db.query(User).filter(User.id == user_id).first()
-    if not user or not is_admin_user(user):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Admin access required"
-        )
-    
-    return user
 
 
 # Admin Login
@@ -128,32 +168,49 @@ async def admin_login(
     db: Session = Depends(get_db)
 ):
     """Admin login"""
-    # Find user by username or email
-    user = db.query(User).filter(
-        or_(User.username == username, User.email == username)
-    ).first()
-    
-    if not user:
+    try:
+        # Sanitize input
+        from security import sanitize_input
+        try:
+            username = sanitize_input(username, max_length=100)
+        except Exception:
+            pass  # Use original if sanitization fails
+        
+        # Find user by username or email
+        user = db.query(User).filter(
+            or_(User.username == username, User.email == username)
+        ).first()
+        
+        if not user:
+            return templates.TemplateResponse(
+                "admin/login.html",
+                {"request": request, "error": "Invalid credentials"},
+                status_code=401
+            )
+        
+        # Check if user is admin
+        if not is_admin_user(user):
+            return templates.TemplateResponse(
+                "admin/login.html",
+                {"request": request, "error": "Access denied. Admin privileges required."},
+                status_code=403
+            )
+        
+        # Verify password
+        if not user.hashed_password or not verify_password(password, user.hashed_password):
+            return templates.TemplateResponse(
+                "admin/login.html",
+                {"request": request, "error": "Invalid credentials"},
+                status_code=401
+            )
+    except Exception as e:
+        print(f"[Admin Login] Error: {e}")
+        import traceback
+        traceback.print_exc()
         return templates.TemplateResponse(
             "admin/login.html",
-            {"request": request, "error": "Invalid credentials"},
-            status_code=401
-        )
-    
-    # Check if user is admin
-    if not is_admin_user(user):
-        return templates.TemplateResponse(
-            "admin/login.html",
-            {"request": request, "error": "Access denied. Admin privileges required."},
-            status_code=403
-        )
-    
-    # Verify password
-    if not user.hashed_password or not verify_password(password, user.hashed_password):
-        return templates.TemplateResponse(
-            "admin/login.html",
-            {"request": request, "error": "Invalid credentials"},
-            status_code=401
+            {"request": request, "error": "An error occurred. Please try again."},
+            status_code=500
         )
     
     # Create admin token with 24 hour expiration (matching cookie max_age)
@@ -165,7 +222,15 @@ async def admin_login(
     
     # Redirect to dashboard
     response = RedirectResponse(url="/admin", status_code=303)
-    response.set_cookie(key="admin_token", value=token, httponly=True, max_age=3600*24)  # 24 hours
+    # Set cookie with secure settings (allow SameSite for localhost/development)
+    response.set_cookie(
+        key="admin_token", 
+        value=token, 
+        httponly=True, 
+        max_age=3600*24,  # 24 hours
+        samesite="lax",  # Allow cookies in same-site requests
+        secure=settings.ENVIRONMENT == "production"  # Only use secure cookies in production (HTTPS)
+    )
     return response
 
 
