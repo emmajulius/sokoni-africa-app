@@ -187,14 +187,30 @@ async def get_products(
             )
 
         # Exclude expired auctions (ended more than 24 hours ago)
+        # But include active/pending auctions for real-time updates
         now = datetime.now(timezone.utc)
         cutoff_time = now - timedelta(hours=24)
         query = query.filter(
             or_(
                 Product.is_auction == False,
-                Product.auction_status != "ended",
-                Product.auction_end_time > cutoff_time,
-                Product.auction_end_time.is_(None)
+                # Include active/pending auctions
+                and_(
+                    Product.is_auction == True,
+                    or_(
+                        Product.auction_status == "active",
+                        Product.auction_status == "pending",
+                        # Include recently ended auctions (within 24 hours) for visibility
+                        and_(
+                            Product.auction_status == "ended",
+                            Product.auction_end_time > cutoff_time
+                        )
+                    )
+                ),
+                # Include auctions without status (newly created)
+                and_(
+                    Product.is_auction == True,
+                    Product.auction_status.is_(None)
+                )
             )
         )
         
