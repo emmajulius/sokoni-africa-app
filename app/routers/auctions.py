@@ -385,25 +385,42 @@ async def place_bid(
             detail="You cannot bid on your own auction"
         )
     
-    # Update and check auction status
-    auction_status = _check_and_update_auction_status(product, db)
+    # Quick check if auction has ended (faster than full status update)
+    now = datetime.now(timezone.utc)
+    if product.auction_end_time:
+        if product.auction_end_time.tzinfo is None:
+            auction_end = product.auction_end_time.replace(tzinfo=timezone.utc)
+        else:
+            auction_end = product.auction_end_time
+        
+        # Quick check - if ended more than 1 hour ago, update status
+        if auction_end < now - timedelta(hours=1):
+            # Only update status if clearly ended
+            if product.auction_status not in ("ended", "completed"):
+                auction_status = _check_and_update_auction_status(product, db)
+                db.refresh(product)
+            else:
+                auction_status = product.auction_status
+        else:
+            # Auction is still active or just ended - use current status
+            auction_status = product.auction_status or "active"
+        
+        # Check if auction has ended
+        if now >= auction_end:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Auction has ended"
+            )
+    else:
+        # No end time - use current status
+        auction_status = product.auction_status or "active"
     
+    # Check auction status
     if auction_status != "active":
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"Cannot place bid. Auction status: {auction_status}"
         )
-    
-    # Check if auction has ended
-    now = datetime.now(timezone.utc)
-    if product.auction_end_time:
-        if product.auction_end_time.tzinfo is None:
-            product.auction_end_time = product.auction_end_time.replace(tzinfo=timezone.utc)
-        if now >= product.auction_end_time:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Auction has ended"
-            )
     
     # Calculate minimum bid
     if product.current_bid is None:
@@ -436,28 +453,37 @@ async def place_bid(
             detail=f"Insufficient balance. You have {wallet.sokocoin_balance:.2f} Sokocoin, but need {bid_data.bid_amount:.2f} Sokocoin"
         )
     
-    # Mark previous winning bid as outbid
+    # Mark previous winning bid as outbid (optimized - only if needed)
     if product.current_bidder_id and product.current_bidder_id != current_user.id:
-        previous_winning_bid = db.query(Bid).filter(
-            Bid.product_id == product_id,
-            Bid.bidder_id == product.current_bidder_id,
-            Bid.is_winning_bid == True
-        ).first()
-        
-        if previous_winning_bid:
-            previous_winning_bid.is_winning_bid = False
-            previous_winning_bid.is_outbid = True
+        try:
+            # Use a simpler query - just update the most recent winning bid
+            previous_winning_bid = db.query(Bid).filter(
+                Bid.product_id == product_id,
+                Bid.bidder_id == product.current_bidder_id,
+                Bid.is_winning_bid == True
+            ).order_by(desc(Bid.bid_time)).first()
             
-            # Notify previous bidder they were outbid
-            outbid_notification = Notification(
-                user_id=product.current_bidder_id,
-                notification_type="auction",
-                title="You Were Outbid",
-                message=f"Someone placed a higher bid on '{product.title}'. Current bid: {bid_data.bid_amount:.2f} Sokocoin",
-                related_product_id=product.id,
-                is_read=False
-            )
-            db.add(outbid_notification)
+            if previous_winning_bid:
+                previous_winning_bid.is_winning_bid = False
+                previous_winning_bid.is_outbid = True
+                
+                # Notify previous bidder they were outbid (defer to background if possible)
+                try:
+                    outbid_notification = Notification(
+                        user_id=product.current_bidder_id,
+                        notification_type="auction",
+                        title="You Were Outbid",
+                        message=f"Someone placed a higher bid on '{product.title}'. Current bid: {bid_data.bid_amount:.2f} Sokocoin",
+                        related_product_id=product.id,
+                        is_read=False
+                    )
+                    db.add(outbid_notification)
+                except Exception as e:
+                    # If notification fails, continue anyway
+                    print(f"Warning: Failed to create outbid notification: {e}")
+        except Exception as e:
+            # If bid update fails, log but continue
+            print(f"Warning: Failed to update previous bid: {e}")
     
     # Create new bid
     new_bid = Bid(
@@ -474,23 +500,34 @@ async def place_bid(
     product.current_bidder_id = current_user.id
     product.updated_at = now
     
-    # Notify seller of new bid
-    seller_notification = Notification(
-        user_id=product.seller_id,
-        notification_type="auction",
-        title="New Bid Received",
-        message=f"A new bid of {bid_data.bid_amount:.2f} Sokocoin was placed on '{product.title}'",
-        related_product_id=product.id,
-        related_user_id=current_user.id,
-        is_read=False
-    )
-    db.add(seller_notification)
+    # Notify seller of new bid (defer to background if possible)
+    try:
+        seller_notification = Notification(
+            user_id=product.seller_id,
+            notification_type="auction",
+            title="New Bid Received",
+            message=f"A new bid of {bid_data.bid_amount:.2f} Sokocoin was placed on '{product.title}'",
+            related_product_id=product.id,
+            related_user_id=current_user.id,
+            is_read=False
+        )
+        db.add(seller_notification)
+    except Exception as e:
+        # If notification fails, continue anyway
+        print(f"Warning: Failed to create seller notification: {e}")
     
-    db.commit()
-    db.refresh(new_bid)
+    try:
+        db.commit()
+        db.refresh(new_bid)
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to place bid: {str(e)}"
+        )
     
-    # Get bidder info for response
-    bidder = db.query(User).filter(User.id == current_user.id).first()
+    # Get bidder info for response (already have current_user, no need to query)
+    bidder = current_user
     
     return BidResponse(
         id=new_bid.id,
