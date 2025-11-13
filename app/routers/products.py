@@ -311,12 +311,15 @@ async def get_products(
                 distance = None
 
             # Calculate auction fields if it's an auction (using batch-loaded data)
+            # Calculate time remaining client-side for real-time feel (no status update needed)
             time_remaining_seconds = None
             bid_count = None
             current_bidder_username = None
+            auction_status = product.auction_status  # Use current status, don't update here
+            
             if product.is_auction:
                 try:
-                    # Status already updated in batch above, just refresh if needed
+                    # Calculate time remaining (fast, no DB writes)
                     if product.auction_end_time:
                         now = datetime.now(timezone.utc)
                         if product.auction_end_time.tzinfo is None:
@@ -325,6 +328,10 @@ async def get_products(
                             auction_end = product.auction_end_time
                         remaining = (auction_end - now).total_seconds()
                         time_remaining_seconds = max(0, int(remaining))
+                        
+                        # Update status locally if auction has ended (client can also check)
+                        if remaining <= 0 and auction_status == "active":
+                            auction_status = "ended"
                     
                     # Use batch-loaded bid count
                     bid_count = bid_counts_map.get(product.id, 0)
@@ -374,7 +381,7 @@ async def get_products(
                     "current_bid": float(product.current_bid) if product.current_bid is not None else None,
                     "current_bidder_id": product.current_bidder_id,
                     "current_bidder_username": current_bidder_username,
-                    "auction_status": product.auction_status,
+                    "auction_status": auction_status,  # Use calculated status
                     "winner_id": product.winner_id,
                     "winner_paid": product.winner_paid if product.winner_paid is not None else False,
                     "bid_count": bid_count,
