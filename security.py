@@ -36,7 +36,10 @@ RATE_LIMIT_CONFIG = {
     "/api/auth/register": {"max_requests": 3, "window_seconds": 600},  # 3 attempts per 10 minutes
     "/api/auth/forgot-password": {"max_requests": 3, "window_seconds": 600},
     "/api/auth/reset-password": {"max_requests": 5, "window_seconds": 300},
-    "default": {"max_requests": 100, "window_seconds": 60},  # 100 requests per minute
+    "/api/products": {"max_requests": 200, "window_seconds": 60},  # Higher limit for product listing
+    "/api/uploads": {"max_requests": 500, "window_seconds": 60},  # High limit for image serving
+    "/static": {"max_requests": 500, "window_seconds": 60},  # High limit for static files
+    "default": {"max_requests": 200, "window_seconds": 60},  # Increased default to 200 requests per minute
 }
 
 # Account lockout configuration
@@ -67,8 +70,13 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
     """Rate limiting middleware to prevent abuse"""
     
     async def dispatch(self, request: Request, call_next):
-        # Skip rate limiting for health checks
-        if request.url.path in ["/api/health", "/docs", "/redoc", "/openapi.json"]:
+        # Skip rate limiting for health checks and static files
+        path = request.url.path
+        if path in ["/api/health", "/docs", "/redoc", "/openapi.json"]:
+            return await call_next(request)
+        
+        # Skip rate limiting for image/static file requests (they're served directly)
+        if path.startswith("/api/uploads/") or path.startswith("/static/"):
             return await call_next(request)
         
         # Get client identifier (IP address or user ID if authenticated)
@@ -85,9 +93,20 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
             except Exception:
                 pass
         
-        # Get rate limit config for this endpoint
-        endpoint = request.url.path
-        config = RATE_LIMIT_CONFIG.get(endpoint, RATE_LIMIT_CONFIG["default"])
+        # Get rate limit config for this endpoint (check if path starts with any configured endpoint)
+        endpoint = path
+        config = RATE_LIMIT_CONFIG.get(endpoint, None)
+        
+        # If no exact match, check if path starts with any configured endpoint
+        if config is None:
+            for configured_endpoint, endpoint_config in RATE_LIMIT_CONFIG.items():
+                if configured_endpoint != "default" and path.startswith(configured_endpoint):
+                    config = endpoint_config
+                    break
+        
+        # Use default if no match found
+        if config is None:
+            config = RATE_LIMIT_CONFIG["default"]
         
         # Clean old entries
         current_time = time.time()
