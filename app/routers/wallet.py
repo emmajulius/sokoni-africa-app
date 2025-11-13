@@ -975,14 +975,9 @@ async def delete_transaction(
             detail="Transaction not found"
         )
     
-    # Only allow deletion of failed or cancelled transactions
-    # Prevent deletion of completed transactions that affect wallet balance
-    if transaction.status == WalletTransactionStatus.COMPLETED:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Cannot delete completed transactions"
-        )
-    
+    # Allow deletion of all transactions, including completed ones
+    # Note: Deleting completed transactions will remove them from history
+    # but the wallet balance has already been affected by these transactions
     db.delete(transaction)
     db.commit()
     
