@@ -7,7 +7,10 @@ from urllib.parse import urlparse
 from datetime import datetime, timezone, timedelta
 import math
 import traceback
+import logging
 from database import get_db
+
+logger = logging.getLogger(__name__)
 from models import Product, User, Category, ProductLike, ProductComment, ProductRating, Notification, Bid
 from schemas import (
     ProductCreate, ProductUpdate, ProductResponse,
