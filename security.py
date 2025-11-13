@@ -56,8 +56,9 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         for header, value in SECURITY_HEADERS.items():
             response.headers[header] = value
         
-        # Remove server header to hide server information
-        response.headers.pop("server", None)
+        # Remove server header to hide server information (use del instead of pop)
+        if "server" in response.headers:
+            del response.headers["server"]
         
         return response
 
