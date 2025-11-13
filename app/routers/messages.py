@@ -289,3 +289,80 @@ async def get_conversation_with_user(
         created_at=conversation.created_at
     )
 
+
+@router.delete("/messages/{message_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_message(
+    message_id: int,
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    """Delete a message (both sender and receiver can delete)"""
+    message = db.query(Message).filter(Message.id == message_id).first()
+    if not message:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Message not found"
+        )
+    
+    # Get the conversation to check if user is part of it
+    conversation = db.query(Conversation).filter(Conversation.id == message.conversation_id).first()
+    if not conversation:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Conversation not found"
+        )
+    
+    # Check if user is part of this conversation (can delete both sent and received messages)
+    if conversation.user1_id != current_user.id and conversation.user2_id != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You don't have access to this message"
+        )
+    
+    # Delete the message
+    db.delete(message)
+    db.flush()
+    
+    # Update conversation metadata after deletion
+    latest_message = db.query(Message).filter(
+        Message.conversation_id == conversation.id
+    ).order_by(desc(Message.created_at)).first()
+    conversation.last_message_at = latest_message.created_at if latest_message else None
+    
+    db.commit()
+    
+    return None
+
+
+@router.delete("/conversations/{conversation_id}/messages", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_all_messages(
+    conversation_id: int,
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    """Delete all messages in a conversation"""
+    conversation = db.query(Conversation).filter(Conversation.id == conversation_id).first()
+    if not conversation:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Conversation not found"
+        )
+    
+    # Check if user is part of this conversation
+    if conversation.user1_id != current_user.id and conversation.user2_id != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You don't have access to this conversation"
+        )
+    
+    # Delete all messages in the conversation
+    db.query(Message).filter(
+        Message.conversation_id == conversation_id
+    ).delete(synchronize_session=False)
+    
+    # Reset conversation metadata
+    conversation.last_message_at = None
+    
+    db.commit()
+    
+    return None
