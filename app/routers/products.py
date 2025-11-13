@@ -200,9 +200,8 @@ async def get_products(
         
         query = query.order_by(desc(Product.created_at))
         # Optimized: Only load the exact number needed for better performance
-        # For location-based sorting, we still need a few extra to sort by distance
-        # But reduce from +10 to +5 for faster queries
-        products = query.offset(skip).limit(limit + 5 if latitude and longitude else limit).all()
+        # Skip loading extra products - distance sorting can work with exact limit
+        products = query.offset(skip).limit(limit).all()
 
         # Reduced logging for performance
         if len(products) > 0:
@@ -389,8 +388,14 @@ async def get_products(
                 traceback.print_exc()
                 continue
 
+        # Only sort by distance if location is provided and enabled
+        # Skip distance sorting for faster response when not needed
         if user_lat is not None and user_lon is not None:
-            result.sort(key=lambda x: (x.distance is None, x.distance or float('inf')))
+            try:
+                result.sort(key=lambda x: (x.distance is None, x.distance or float('inf')))
+            except Exception as e:
+                # If sorting fails, just continue without sorting
+                print(f"Warning: Distance sorting failed: {e}")
 
         result = result[:limit]
         print(f"SUCCESS: Returning {len(result)} products")
