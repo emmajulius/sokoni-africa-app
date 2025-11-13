@@ -314,9 +314,9 @@ async def get_auction_bids(
     skip: int = 0,
     limit: int = 50,
     db: Session = Depends(get_db),
-    current_user: Optional[User] = Depends(get_current_user)
+    current_user: Optional[User] = Depends(get_current_user_optional)
 ):
-    """Get bid history for an auction"""
+    """Get bid history for an auction - optimized for performance"""
     product = db.query(Product).filter(Product.id == product_id).first()
     
     if not product:
@@ -331,14 +331,23 @@ async def get_auction_bids(
             detail="Product is not an auction"
         )
     
-    # Get bids ordered by bid time (most recent first)
+    # Get bids ordered by bid time (most recent first) - optimized with batch loading
     bids = db.query(Bid).filter(
         Bid.product_id == product_id
     ).order_by(desc(Bid.bid_time)).offset(skip).limit(limit).all()
     
+    # Batch load all bidders in one query to avoid N+1 queries
+    bidder_ids = list(set([bid.bidder_id for bid in bids]))
+    bidders = {}
+    if bidder_ids:
+        users = db.query(User).filter(User.id.in_(bidder_ids)).all()
+        bidders = {user.id: user for user in users}
+    
+    # Use batch-loaded bidder data
     results = []
     for bid in bids:
-        bidder = db.query(User).filter(User.id == bid.bidder_id).first()
+        bidder = bidders.get(bid.bidder_id)
+        
         results.append(BidResponse(
             id=bid.id,
             product_id=bid.product_id,
