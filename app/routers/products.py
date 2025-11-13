@@ -478,40 +478,19 @@ async def get_product(
                 except Exception:
                     pass
         
-        # Get bid count and current bidder in a single optimized query
+        # Get bid count and current bidder (optimized - simple queries)
         try:
-            # Batch load bid count and current bidder
-            bid_data = db.query(
-                func.count(Bid.id).label('bid_count'),
-                User.username.label('bidder_username')
-            ).outerjoin(
-                User, User.id == Product.current_bidder_id
-            ).filter(
-                Bid.product_id == product.id
-            ).first()
+            # Simple bid count query
+            bid_count = db.query(func.count(Bid.id)).filter(Bid.product_id == product.id).scalar() or 0
             
-            if bid_data:
-                bid_count = bid_data.bid_count or 0
-                # Get current bidder username separately if needed (simpler query)
-                if product.current_bidder_id:
-                    bidder = db.query(User).filter(User.id == product.current_bidder_id).first()
-                    current_bidder_username = bidder.username if bidder else None
-            else:
-                # Fallback to simple count if join fails
-                bid_count = db.query(func.count(Bid.id)).filter(Bid.product_id == product.id).scalar() or 0
-                if product.current_bidder_id:
-                    bidder = db.query(User).filter(User.id == product.current_bidder_id).first()
-                    current_bidder_username = bidder.username if bidder else None
+            # Get current bidder username if exists (only if needed)
+            if product.current_bidder_id:
+                bidder = db.query(User).filter(User.id == product.current_bidder_id).first()
+                current_bidder_username = bidder.username if bidder else None
         except Exception as e:
-            # If bid query fails, use simpler fallback
+            # If bid query fails, continue without bid data
             print(f"Warning: Failed to load bid data: {e}")
-            try:
-                bid_count = db.query(func.count(Bid.id)).filter(Bid.product_id == product.id).scalar() or 0
-                if product.current_bidder_id:
-                    bidder = db.query(User).filter(User.id == product.current_bidder_id).first()
-                    current_bidder_username = bidder.username if bidder else None
-            except Exception:
-                bid_count = 0
+            bid_count = 0
     
     product_dict = {
         "id": product.id,
