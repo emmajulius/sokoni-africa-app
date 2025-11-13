@@ -12,6 +12,7 @@ from database import get_db
 from models import Product, Bid, User, Wallet, Notification, WalletTransaction, WalletTransactionType, WalletTransactionStatus, CartItem
 from schemas import BidCreate, BidResponse, AuctionResponse
 from app.routers.auth import get_current_user
+from auth import get_current_user_optional
 from config import settings
 from app.routers.orders import _calculate_shipping_fee, _calculate_distance
 
