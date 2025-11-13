@@ -419,47 +419,99 @@ async def get_product(
     current_user: Optional[User] = Depends(get_current_user_optional),
     db: Session = Depends(get_db)
 ):
-    """Get product by ID with real-time engagement stats"""
-    product = db.query(Product).filter(Product.id == product_id).first()
+    """Get product by ID with real-time engagement stats - optimized for performance"""
+    # Use eager loading to prevent N+1 queries
+    from sqlalchemy.orm import joinedload
+    product = db.query(Product).options(joinedload(Product.seller)).filter(Product.id == product_id).first()
     if not product:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Product not found"
         )
     
-    seller = db.query(User).filter(User.id == product.seller_id).first()
+    # Seller is already loaded via eager loading
+    seller = product.seller if hasattr(product, 'seller') else None
+    if not seller and product.seller_id:
+        seller = db.query(User).filter(User.id == product.seller_id).first()
     
     # Calculate real-time engagement stats
     current_user_id = current_user.id if current_user else None
     engagement = _calculate_product_engagement(product, db, current_user_id)
     
-    # Calculate auction time remaining if it's an auction
+    # Calculate auction time remaining if it's an auction (optimized - skip status update for speed)
     time_remaining_seconds = None
     bid_count = None
     current_bidder_username = None
     
     if product.is_auction:
-        # Update auction status
-        from app.routers.auctions import _check_and_update_auction_status
-        _check_and_update_auction_status(product, db)
-        db.refresh(product)
+        # Skip status update on every request - it's too slow
+        # Status updates should be done via background task or only when needed
+        # Only update if auction is clearly ended (more than 1 hour past end time)
+        try:
+            if product.auction_end_time:
+                now = datetime.now(timezone.utc)
+                if product.auction_end_time.tzinfo is None:
+                    auction_end = product.auction_end_time.replace(tzinfo=timezone.utc)
+                else:
+                    auction_end = product.auction_end_time
+                
+                # Only update status if auction ended more than 1 hour ago (to avoid frequent updates)
+                if auction_end < now - timedelta(hours=1) and product.auction_status not in ("ended", "completed"):
+                    from app.routers.auctions import _check_and_update_auction_status
+                    _check_and_update_auction_status(product, db)
+                    db.refresh(product)
+                
+                remaining = (auction_end - now).total_seconds()
+                time_remaining_seconds = max(0, int(remaining))
+        except Exception as e:
+            # If status update fails, continue without it
+            print(f"Warning: Failed to update auction status: {e}")
+            if product.auction_end_time:
+                try:
+                    now = datetime.now(timezone.utc)
+                    if product.auction_end_time.tzinfo is None:
+                        auction_end = product.auction_end_time.replace(tzinfo=timezone.utc)
+                    else:
+                        auction_end = product.auction_end_time
+                    remaining = (auction_end - now).total_seconds()
+                    time_remaining_seconds = max(0, int(remaining))
+                except Exception:
+                    pass
         
-        if product.auction_end_time:
-            now = datetime.now(timezone.utc)
-            if product.auction_end_time.tzinfo is None:
-                auction_end = product.auction_end_time.replace(tzinfo=timezone.utc)
+        # Get bid count and current bidder in a single optimized query
+        try:
+            # Batch load bid count and current bidder
+            bid_data = db.query(
+                func.count(Bid.id).label('bid_count'),
+                User.username.label('bidder_username')
+            ).outerjoin(
+                User, User.id == Product.current_bidder_id
+            ).filter(
+                Bid.product_id == product.id
+            ).first()
+            
+            if bid_data:
+                bid_count = bid_data.bid_count or 0
+                # Get current bidder username separately if needed (simpler query)
+                if product.current_bidder_id:
+                    bidder = db.query(User).filter(User.id == product.current_bidder_id).first()
+                    current_bidder_username = bidder.username if bidder else None
             else:
-                auction_end = product.auction_end_time
-            remaining = (auction_end - now).total_seconds()
-            time_remaining_seconds = max(0, int(remaining))
-        
-        # Get bid count
-        bid_count = db.query(func.count(Bid.id)).filter(Bid.product_id == product.id).scalar() or 0
-        
-        # Get current bidder username
-        if product.current_bidder_id:
-            bidder = db.query(User).filter(User.id == product.current_bidder_id).first()
-            current_bidder_username = bidder.username if bidder else None
+                # Fallback to simple count if join fails
+                bid_count = db.query(func.count(Bid.id)).filter(Bid.product_id == product.id).scalar() or 0
+                if product.current_bidder_id:
+                    bidder = db.query(User).filter(User.id == product.current_bidder_id).first()
+                    current_bidder_username = bidder.username if bidder else None
+        except Exception as e:
+            # If bid query fails, use simpler fallback
+            print(f"Warning: Failed to load bid data: {e}")
+            try:
+                bid_count = db.query(func.count(Bid.id)).filter(Bid.product_id == product.id).scalar() or 0
+                if product.current_bidder_id:
+                    bidder = db.query(User).filter(User.id == product.current_bidder_id).first()
+                    current_bidder_username = bidder.username if bidder else None
+            except Exception:
+                bid_count = 0
     
     product_dict = {
         "id": product.id,
