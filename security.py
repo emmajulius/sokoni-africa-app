@@ -67,7 +67,7 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
 
 
 class RateLimitMiddleware(BaseHTTPMiddleware):
-    """Rate limiting middleware to prevent abuse"""
+    """Rate limiting middleware to prevent abuse - optimized for performance"""
     
     async def dispatch(self, request: Request, call_next):
         # Skip rate limiting for health checks and static files
@@ -76,59 +76,72 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
             return await call_next(request)
         
         # Skip rate limiting for image/static file requests (they're served directly)
-        if path.startswith("/api/uploads/") or path.startswith("/static/"):
+        if path.startswith("/api/uploads/") or path.startswith("/static/") or path.startswith("/admin/"):
             return await call_next(request)
         
-        # Get client identifier (IP address or user ID if authenticated)
-        client_id = request.client.host if request.client else "unknown"
+        # Skip rate limiting for GET requests to products (read-only, less risky)
+        if path.startswith("/api/products") and request.method == "GET":
+            return await call_next(request)
         
-        # Check if user is authenticated and use user ID for rate limiting
-        auth_header = request.headers.get("Authorization")
-        if auth_header and auth_header.startswith("Bearer "):
+        try:
+            # Get client identifier (IP address or user ID if authenticated)
+            client_id = request.client.host if request.client else "unknown"
+            
+            # Check if user is authenticated and use user ID for rate limiting
+            auth_header = request.headers.get("Authorization")
+            if auth_header and auth_header.startswith("Bearer "):
+                try:
+                    # Extract user ID from token (simplified - in production, decode properly)
+                    token = auth_header.split(" ")[1]
+                    # Use token hash as identifier for authenticated users
+                    client_id = f"user_{hashlib.sha256(token.encode()).hexdigest()[:16]}"
+                except Exception:
+                    pass
+            
+            # Get rate limit config for this endpoint (check if path starts with any configured endpoint)
+            endpoint = path
+            config = RATE_LIMIT_CONFIG.get(endpoint, None)
+            
+            # If no exact match, check if path starts with any configured endpoint
+            if config is None:
+                for configured_endpoint, endpoint_config in RATE_LIMIT_CONFIG.items():
+                    if configured_endpoint != "default" and path.startswith(configured_endpoint):
+                        config = endpoint_config
+                        break
+            
+            # Use default if no match found
+            if config is None:
+                config = RATE_LIMIT_CONFIG["default"]
+            
+            # Clean old entries (with error handling)
             try:
-                # Extract user ID from token (simplified - in production, decode properly)
-                token = auth_header.split(" ")[1]
-                # Use token hash as identifier for authenticated users
-                client_id = f"user_{hashlib.sha256(token.encode()).hexdigest()[:16]}"
-            except Exception:
-                pass
+                current_time = time.time()
+                window_start = current_time - config["window_seconds"]
+                _rate_limit_storage[client_id] = [
+                    timestamp for timestamp in _rate_limit_storage[client_id]
+                    if timestamp > window_start
+                ]
+                
+                # Check rate limit
+                if len(_rate_limit_storage[client_id]) >= config["max_requests"]:
+                    logger.warning(f"Rate limit exceeded for {client_id} on {endpoint}")
+                    return JSONResponse(
+                        status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                        content={
+                            "detail": f"Rate limit exceeded. Maximum {config['max_requests']} requests per {config['window_seconds']} seconds."
+                        },
+                        headers={"Retry-After": str(config["window_seconds"])}
+                    )
+                
+                # Record this request
+                _rate_limit_storage[client_id].append(current_time)
+            except Exception as e:
+                # If rate limiting fails, log but don't block the request
+                logger.error(f"Rate limiting error: {e}")
         
-        # Get rate limit config for this endpoint (check if path starts with any configured endpoint)
-        endpoint = path
-        config = RATE_LIMIT_CONFIG.get(endpoint, None)
-        
-        # If no exact match, check if path starts with any configured endpoint
-        if config is None:
-            for configured_endpoint, endpoint_config in RATE_LIMIT_CONFIG.items():
-                if configured_endpoint != "default" and path.startswith(configured_endpoint):
-                    config = endpoint_config
-                    break
-        
-        # Use default if no match found
-        if config is None:
-            config = RATE_LIMIT_CONFIG["default"]
-        
-        # Clean old entries
-        current_time = time.time()
-        window_start = current_time - config["window_seconds"]
-        _rate_limit_storage[client_id] = [
-            timestamp for timestamp in _rate_limit_storage[client_id]
-            if timestamp > window_start
-        ]
-        
-        # Check rate limit
-        if len(_rate_limit_storage[client_id]) >= config["max_requests"]:
-            logger.warning(f"Rate limit exceeded for {client_id} on {endpoint}")
-            return JSONResponse(
-                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-                content={
-                    "detail": f"Rate limit exceeded. Maximum {config['max_requests']} requests per {config['window_seconds']} seconds."
-                },
-                headers={"Retry-After": str(config["window_seconds"])}
-            )
-        
-        # Record this request
-        _rate_limit_storage[client_id].append(current_time)
+        except Exception as e:
+            # If any error occurs in rate limiting, log but don't block
+            logger.error(f"Rate limiting middleware error: {e}")
         
         response = await call_next(request)
         return response
@@ -158,18 +171,21 @@ class RequestSizeLimitMiddleware(BaseHTTPMiddleware):
 
 
 class SecurityLoggingMiddleware(BaseHTTPMiddleware):
-    """Log security-related events"""
+    """Log security-related events - optimized for performance"""
     
     async def dispatch(self, request: Request, call_next):
         start_time = time.time()
+        path = request.url.path
         
-        # Log request (with error handling)
-        try:
-            client_ip = request.client.host if request.client else "unknown"
-            logger.info(f"Request: {request.method} {request.url.path} from {client_ip}")
-        except Exception:
-            pass
+        # Skip logging for common requests to reduce overhead
+        skip_logging = (
+            path.startswith("/api/uploads/") or 
+            path.startswith("/static/") or
+            path == "/api/health" or
+            (path.startswith("/api/products") and request.method == "GET")
+        )
         
+        # Only log errors and security events, not every request (reduces overhead)
         try:
             response = await call_next(request)
         except HTTPException as e:
@@ -177,27 +193,27 @@ class SecurityLoggingMiddleware(BaseHTTPMiddleware):
             try:
                 client_ip = request.client.host if request.client else "unknown"
                 if e.status_code in [401, 403, 429]:
-                    logger.warning(f"Security event: {e.status_code} - {e.detail} from {client_ip}")
+                    logger.warning(f"Security event: {e.status_code} - {e.detail} from {client_ip} on {path}")
             except Exception:
                 pass
             raise
         except Exception as e:
             try:
                 client_ip = request.client.host if request.client else "unknown"
-                logger.error(f"Error processing request: {e} from {client_ip}")
+                logger.error(f"Error processing request {path}: {e} from {client_ip}")
             except Exception:
                 pass
             raise
         
-        # Log response time (with error handling)
+        # Log response time only for slow requests (with error handling)
         try:
             process_time = time.time() - start_time
             if hasattr(response, 'headers'):
                 response.headers["X-Process-Time"] = str(process_time)
             
-            # Log slow requests (potential DoS)
+            # Only log slow requests (potential DoS) - reduces logging overhead
             if process_time > 5.0:
-                logger.warning(f"Slow request: {request.url.path} took {process_time:.2f}s")
+                logger.warning(f"Slow request: {path} took {process_time:.2f}s")
         except Exception:
             pass
         

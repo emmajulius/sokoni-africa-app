@@ -71,17 +71,18 @@ app.add_middleware(
 )
 
 # Add security middleware (order matters - add in reverse order of execution)
-# Security logging first (outermost)
-app.add_middleware(SecurityLoggingMiddleware)
+# Note: Middleware order is important - they execute in reverse order
+# Security headers first (innermost, executes last)
+app.add_middleware(SecurityHeadersMiddleware)
+
+# Rate limiting (before headers so headers are added to rate limit responses)
+app.add_middleware(RateLimitMiddleware)
 
 # Request size limiting
 app.add_middleware(RequestSizeLimitMiddleware)
 
-# Rate limiting
-app.add_middleware(RateLimitMiddleware)
-
-# Security headers (innermost, executes last)
-app.add_middleware(SecurityHeadersMiddleware)
+# Security logging last (outermost, executes first) - reduced logging for performance
+app.add_middleware(SecurityLoggingMiddleware)
 
 # Add GZip compression for API responses (reduces data transfer)
 app.add_middleware(GZipMiddleware, minimum_size=1000)
