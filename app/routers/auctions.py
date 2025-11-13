@@ -135,6 +135,10 @@ def _check_and_update_auction_status(product: Product, db: Session) -> str:
                     )
                     db.add(cart_item)
                 
+                # Get winner's username for notifications
+                winner = db.query(User).filter(User.id == product.winner_id).first()
+                winner_username = winner.username if winner else "Unknown User"
+                
                 # Create notification for winner
                 winner_notification = Notification(
                     user_id=product.winner_id,
@@ -146,12 +150,12 @@ def _check_and_update_auction_status(product: Product, db: Session) -> str:
                 )
                 db.add(winner_notification)
                 
-                # Notify seller
+                # Notify seller with winner's username
                 seller_notification = Notification(
                     user_id=product.seller_id,
                     notification_type="auction",
                     title="Auction Ended",
-                    message=f"Your auction for '{product.title}' has ended. Winner: User ID {product.winner_id}. Waiting for payment.",
+                    message=f"Your auction for '{product.title}' has ended. Winner: {winner_username}. Waiting for payment.",
                     related_product_id=product.id,
                     is_read=False
                 )
