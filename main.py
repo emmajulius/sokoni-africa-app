@@ -155,6 +155,7 @@ app.include_router(wallet.router, prefix="/api", tags=["Wallet"])
 app.include_router(auctions.router, prefix="/api", tags=["Auctions"])
 
 # Include admin router (no prefix, handles /admin routes)
+# IMPORTANT: Admin router must be included BEFORE static mounts to ensure auth checks run first
 app.include_router(admin.router)
 
 # Mount static files for admin panel (CSS, JS)
