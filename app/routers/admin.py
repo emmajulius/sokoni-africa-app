@@ -184,15 +184,28 @@ async def admin_dashboard(
     db: Session = Depends(get_db)
 ):
     """Admin dashboard - requires authentication"""
-    # Check authentication first
-    admin_user_result = await get_admin_user(request, db)
+    # Check authentication first - always redirect to login if not authenticated
+    token = request.cookies.get("admin_token")
+    if not token:
+        return RedirectResponse(url="/admin/login", status_code=303)
     
-    # If redirect response, return it immediately
-    if isinstance(admin_user_result, RedirectResponse):
-        return admin_user_result
+    # Verify token
+    from auth import decode_access_token
+    payload = decode_access_token(token)
+    if not payload:
+        return RedirectResponse(url="/admin/login?expired=1", status_code=303)
     
-    # Otherwise, we have a valid admin user
-    admin_user = admin_user_result
+    # Get user and verify admin
+    user_id = payload.get("sub")
+    if isinstance(user_id, str):
+        user_id = int(user_id)
+    
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user or not is_admin_user(user):
+        return RedirectResponse(url="/admin/login?error=access_denied", status_code=303)
+    
+    # User is authenticated and is admin - proceed with dashboard
+    admin_user = user
     # Get statistics
     total_users = db.query(func.count(User.id)).filter(User.is_guest == False).scalar() or 0
     total_products = db.query(func.count(Product.id)).scalar() or 0
