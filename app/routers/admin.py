@@ -177,34 +177,92 @@ async def admin_logout():
     return response
 
 
-# Admin Dashboard
+# Admin Dashboard - requires authentication
 @router.get("/admin", response_class=HTMLResponse)
+@router.get("/admin/", response_class=HTMLResponse)
 async def admin_dashboard(
     request: Request,
     db: Session = Depends(get_db)
 ):
-    """Admin dashboard - requires authentication"""
-    # Check authentication first - always redirect to login if not authenticated
+    """Admin dashboard - requires authentication - SECURITY: Always check auth first"""
+    # CRITICAL SECURITY CHECK: Always redirect to login if not authenticated
     token = request.cookies.get("admin_token")
+    
+    # Debug logging for troubleshooting
+    print(f"[ADMIN AUTH] Access attempt to /admin")
+    print(f"[ADMIN AUTH] Token exists: {token is not None}")
+    print(f"[ADMIN AUTH] Path: {request.url.path}")
+    
+    # Step 1: Check if token exists
     if not token:
-        return RedirectResponse(url="/admin/login", status_code=303)
+        print(f"[ADMIN AUTH] ❌ No token - REDIRECTING to /admin/login")
+        response = RedirectResponse(url="/admin/login", status_code=303)
+        # Prevent caching of redirect
+        response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+        response.headers["Pragma"] = "no-cache"
+        response.headers["Expires"] = "0"
+        return response
     
-    # Verify token
+    # Step 2: Verify token is valid
     from auth import decode_access_token
-    payload = decode_access_token(token)
-    if not payload:
-        return RedirectResponse(url="/admin/login?expired=1", status_code=303)
+    try:
+        payload = decode_access_token(token)
+        if not payload:
+            print(f"[ADMIN AUTH] ❌ Invalid/expired token - REDIRECTING to /admin/login")
+            response = RedirectResponse(url="/admin/login?expired=1", status_code=303)
+            response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+            response.headers["Pragma"] = "no-cache"
+            response.headers["Expires"] = "0"
+            return response
+    except Exception as e:
+        print(f"[ADMIN AUTH] ❌ Token decode error: {e} - REDIRECTING to /admin/login")
+        response = RedirectResponse(url="/admin/login?expired=1", status_code=303)
+        response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+        response.headers["Pragma"] = "no-cache"
+        response.headers["Expires"] = "0"
+        return response
     
-    # Get user and verify admin
+    # Step 3: Get user from token
     user_id = payload.get("sub")
     if isinstance(user_id, str):
-        user_id = int(user_id)
+        try:
+            user_id = int(user_id)
+        except (ValueError, TypeError):
+            print(f"[ADMIN AUTH] ❌ Invalid user ID in token - REDIRECTING to /admin/login")
+            response = RedirectResponse(url="/admin/login?error=invalid_token", status_code=303)
+            response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+            response.headers["Pragma"] = "no-cache"
+            response.headers["Expires"] = "0"
+            return response
     
-    user = db.query(User).filter(User.id == user_id).first()
-    if not user or not is_admin_user(user):
-        return RedirectResponse(url="/admin/login?error=access_denied", status_code=303)
+    # Step 4: Verify user exists and is admin
+    try:
+        user = db.query(User).filter(User.id == user_id).first()
+        if not user:
+            print(f"[ADMIN AUTH] ❌ User {user_id} not found - REDIRECTING to /admin/login")
+            response = RedirectResponse(url="/admin/login?error=user_not_found", status_code=303)
+            response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+            response.headers["Pragma"] = "no-cache"
+            response.headers["Expires"] = "0"
+            return response
+        
+        if not is_admin_user(user):
+            print(f"[ADMIN AUTH] ❌ User {user.username} is not admin - REDIRECTING to /admin/login")
+            response = RedirectResponse(url="/admin/login?error=access_denied", status_code=303)
+            response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+            response.headers["Pragma"] = "no-cache"
+            response.headers["Expires"] = "0"
+            return response
+    except Exception as e:
+        print(f"[ADMIN AUTH] ❌ Database error: {e} - REDIRECTING to /admin/login")
+        response = RedirectResponse(url="/admin/login?error=server_error", status_code=303)
+        response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+        response.headers["Pragma"] = "no-cache"
+        response.headers["Expires"] = "0"
+        return response
     
-    # User is authenticated and is admin - proceed with dashboard
+    # Step 5: All checks passed - user is authenticated admin
+    print(f"[ADMIN AUTH] ✅ User authenticated: {user.username} (ID: {user.id})")
     admin_user = user
     # Get statistics
     total_users = db.query(func.count(User.id)).filter(User.is_guest == False).scalar() or 0
