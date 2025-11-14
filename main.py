@@ -89,6 +89,35 @@ app.add_middleware(GZipMiddleware, minimum_size=1000)
 
 
 @app.middleware("http")
+async def admin_auth_middleware(request: Request, call_next):
+    """
+    Security middleware: Ensure /admin routes require authentication
+    This runs BEFORE the route handler to catch all /admin requests
+    """
+    path = request.url.path
+    
+    # Only check /admin routes (not /admin/login or /admin/logout)
+    if path == "/admin" or path == "/admin/":
+        # Check for admin_token cookie
+        token = request.cookies.get("admin_token")
+        if not token:
+            # No token - redirect to login immediately
+            from fastapi.responses import RedirectResponse
+            response = RedirectResponse(url="/admin/login", status_code=303)
+            response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+            response.headers["Pragma"] = "no-cache"
+            response.headers["Expires"] = "0"
+            return response
+        
+        # Token exists - let the route handler verify it
+        # (route handler will check if token is valid and user is admin)
+    
+    # Continue to next middleware/route handler
+    response = await call_next(request)
+    return response
+
+
+@app.middleware("http")
 async def add_private_network_cors_headers(request: Request, call_next):
     """
     Chrome requires the Access-Control-Allow-Private-Network header for
