@@ -2,7 +2,7 @@
 
 A complete, production-ready admin panel built with FastAPI and Jinja2 templates for managing the Sokoni Africa e-commerce platform.
 
-## 🚀 Features
+##  Features
 
 - **Dashboard**: Overview with key statistics (users, products, orders, revenue)
 - **User Management**: View, search, activate/deactivate, and delete users
@@ -13,7 +13,7 @@ A complete, production-ready admin panel built with FastAPI and Jinja2 templates
 - **Search & Filter**: Advanced search and filtering capabilities
 - **Pagination**: Efficient pagination for large datasets
 
-## 📁 Project Structure
+##  Project Structure
 
 ```
 africa_sokoni_app_backend/
@@ -37,7 +37,7 @@ africa_sokoni_app_backend/
 └── main.py                   # FastAPI app (includes admin routes)
 ```
 
-## 🛠️ Setup
+##  Setup
 
 ### 1. Install Dependencies
 
@@ -96,7 +96,7 @@ ADMIN_PASSWORD=your_secure_password
 ADMIN_EMAIL=admin@sokoniafrica.com
 ```
 
-**⚠️ IMPORTANT**: Change the default password in production!
+** IMPORTANT**: Change the default password in production!
 
 ### 4. Start the Server
 
@@ -114,7 +114,7 @@ Open your browser and navigate to:
 - Username: `admin`
 - Password: `admin123`
 
-## 📋 Admin Panel Routes
+##  Admin Panel Routes
 
 | Route | Description |
 |-------|-------------|
@@ -125,7 +125,7 @@ Open your browser and navigate to:
 | `/admin/orders` | Orders management |
 | `/admin/logout` | Logout |
 
-## 🔐 Security
+##  Security
 
 ### Current Implementation
 - Admin authentication via JWT tokens stored in cookies
@@ -142,7 +142,7 @@ Open your browser and navigate to:
 7. **Add rate limiting** to prevent brute force attacks
 8. **Implement 2FA** for admin accounts
 
-## 🎨 Customization
+##  Customization
 
 ### Styling
 Edit `static/admin/css/style.css` to customize the appearance.
@@ -155,7 +155,7 @@ Edit files in `templates/admin/` to modify the UI structure.
 2. Create templates in `templates/admin/`
 3. Update navigation in `templates/admin/base.html`
 
-## 📊 Features Breakdown
+##  Features Breakdown
 
 ### Dashboard
 - Total users count
@@ -189,7 +189,7 @@ Edit files in `templates/admin/` to modify the UI structure.
 - Update order status (dropdown)
 - See order creation date
 
-## 🚢 Deployment
+##  Deployment
 
 ### For Free Hosting (Render.com, Railway, Fly.io)
 
@@ -218,7 +218,7 @@ DATABASE_URL=postgresql://user:pass@host:5432/dbname
 # Other settings...
 ```
 
-## 📝 Notes
+##  Notes
 
 - The admin panel uses the same database as your main API
 - All admin operations use your existing models and schemas
@@ -226,7 +226,7 @@ DATABASE_URL=postgresql://user:pass@host:5432/dbname
 - Fully integrated with your FastAPI backend
 - Works seamlessly with your existing authentication system
 
-## 🐛 Troubleshooting
+##  Troubleshooting
 
 ### Can't login?
 1. Check if admin user exists in database
@@ -244,7 +244,7 @@ DATABASE_URL=postgresql://user:pass@host:5432/dbname
 2. Check Jinja2 is installed: `pip install jinja2`
 3. Restart the server after installing dependencies
 
-## 🎯 Next Steps
+##  Next Steps
 
 Consider adding:
 - [ ] Analytics charts (using Chart.js)
@@ -257,7 +257,7 @@ Consider adding:
 - [ ] Product image upload in admin panel
 - [ ] Order details modal/view page
 
-## 📞 Support
+##  Support
 
 For issues or questions, check:
 - Main API documentation: `/docs`
@@ -266,5 +266,5 @@ For issues or questions, check:
 
 ---
 
-**Built with ❤️ for Sokoni Africa**
+
 
