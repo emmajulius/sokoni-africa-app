@@ -1,12 +1,12 @@
 # Admin Panel Setup Instructions - Step by Step
 
-## 📋 Prerequisites
+##  Prerequisites
 
 Before starting, make sure:
-1. ✅ You have Python installed
-2. ✅ Your database is running (PostgreSQL)
-3. ✅ Your `.env` file is configured with database credentials
-4. ✅ You're in the backend directory: `africa_sokoni_app_backend`
+1.  You have Python installed
+2.  Your database is running (PostgreSQL)
+3.  Your `.env` file is configured with database credentials
+4.  You're in the backend directory: `africa_sokoni_app_backend`
 
 ---
 
@@ -41,7 +41,7 @@ Collecting aiofiles==23.2.1
 Successfully installed jinja2-3.1.2 aiofiles-23.2.1
 ```
 
-**✅ Success indicator:** No errors, packages installed successfully.
+** Success indicator:** No errors, packages installed successfully.
 
 ---
 
@@ -62,22 +62,22 @@ python create_admin_user.py
 
 **Scenario A: Admin user doesn't exist**
 ```
-✅ Admin user created successfully!
+ Admin user created successfully!
 
-📋 Admin Credentials:
+ Admin Credentials:
    Username: admin
    Email: admin@sokoniafrica.com
    Password: admin123
    User ID: 1
 
-🌐 Access admin panel at: http://localhost:8000/admin/login
+ Access admin panel at: http://localhost:8000/admin/login
 
-⚠️  IMPORTANT: Change the password after first login!
+  IMPORTANT: Change the password after first login!
 ```
 
 **Scenario B: Admin user already exists**
 ```
-⚠️  Admin user already exists!
+  Admin user already exists!
    Username: admin
    Email: admin@sokoniafrica.com
    ID: 1
@@ -140,7 +140,7 @@ http://localhost:8000/admin/login
 
 **What you'll see:**
 - A login page with:
-  - "🚀 Sokoni Africa" header
+  - " Sokoni Africa" header
   - "Admin Panel Login" subtitle
   - Username/Email input field
   - Password input field
@@ -276,12 +276,12 @@ Before considering setup complete, verify:
 
 ---
 
-## 🎯 Next Steps After Setup
+##  Next Steps After Setup
 
 1. **Change the default password** - Use the admin panel or update in database
 2. **Explore features** - Try searching, filtering, managing users/products/orders
 3. **Customize** - Edit templates or CSS to match your brand
-4. **Deploy** - Follow `FREE_HOSTING_GUIDE.md` to deploy to free hosting
+4. **Deploy** 
 
 ---
 
