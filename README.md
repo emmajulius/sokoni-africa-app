@@ -57,7 +57,7 @@ africa_sokoni_app_backend/
 
 1. **Clone the repository** (if not already done):
    ```bash
-   cd africa_sokoni_app_backend
+   cd africa_sokoni_app
    ```
 
 2. **Create a virtual environment**:
